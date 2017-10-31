@@ -2,7 +2,7 @@
 
 import { generateUid } from '../util/util';
 
-import { DIRECTIONS, TILETYPES } from '../store/modules/constants';
+import { DIRECTIONS, TILETYPES } from '../shared/constants';
 
 export function level() {
   return {
