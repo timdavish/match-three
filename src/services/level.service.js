@@ -40,7 +40,7 @@ export function level() {
         TILETYPES.BLUE,
         TILETYPES.GREEN,
         TILETYPES.ORANGE,
-        TILETYPES.PURPLE,
+        // TILETYPES.PURPLE,
         // TILETYPES.RED,
         // TILETYPES.YELLOW,
       ],
@@ -50,8 +50,6 @@ export function level() {
 
 // TODO: make a board where the middle row doesn't move, feeds from top & bottom,
 // and middle row feeds from both directions
-
-// reverseIterate priorities, then on way back up reverseIterate subPriorities
 
 const interwovenPos = [
   // Row 1
@@ -117,4 +115,33 @@ const straightDownPos = [
   { id: generateUid(), row: 4, col: 2, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.NONE, feedDirection: DIRECTIONS.UP },
   { id: generateUid(), row: 4, col: 3, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.NONE, feedDirection: DIRECTIONS.UP },
   { id: generateUid(), row: 4, col: 4, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.NONE, feedDirection: DIRECTIONS.UP },
+];
+
+const spiralPos = [
+  // In order
+  { id: generateUid(), row: 0, col: 0, isActive: true, isFrozen: false, isColumnStart: true, flowDirection: DIRECTIONS.DOWN, feedDirection: DIRECTIONS.UP },
+  { id: generateUid(), row: 1, col: 0, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.DOWN, feedDirection: DIRECTIONS.UP },
+  { id: generateUid(), row: 2, col: 0, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.DOWN, feedDirection: DIRECTIONS.UP },
+  { id: generateUid(), row: 3, col: 0, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.DOWN, feedDirection: DIRECTIONS.UP },
+  { id: generateUid(), row: 4, col: 0, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.RIGHT, feedDirection: DIRECTIONS.UP },
+  { id: generateUid(), row: 4, col: 1, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.RIGHT, feedDirection: DIRECTIONS.LEFT },
+  { id: generateUid(), row: 4, col: 2, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.RIGHT, feedDirection: DIRECTIONS.LEFT },
+  { id: generateUid(), row: 4, col: 3, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.RIGHT, feedDirection: DIRECTIONS.LEFT },
+  { id: generateUid(), row: 4, col: 4, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.UP, feedDirection: DIRECTIONS.LEFT },
+  { id: generateUid(), row: 3, col: 4, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.UP, feedDirection: DIRECTIONS.DOWN },
+  { id: generateUid(), row: 2, col: 4, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.UP, feedDirection: DIRECTIONS.DOWN },
+  { id: generateUid(), row: 1, col: 4, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.UP, feedDirection: DIRECTIONS.DOWN },
+  { id: generateUid(), row: 0, col: 4, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.LEFT, feedDirection: DIRECTIONS.DOWN },
+  { id: generateUid(), row: 0, col: 3, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.LEFT, feedDirection: DIRECTIONS.RIGHT },
+  { id: generateUid(), row: 0, col: 2, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.LEFT, feedDirection: DIRECTIONS.RIGHT },
+  { id: generateUid(), row: 0, col: 1, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.DOWN, feedDirection: DIRECTIONS.RIGHT },
+  { id: generateUid(), row: 1, col: 1, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.DOWN, feedDirection: DIRECTIONS.UP },
+  { id: generateUid(), row: 2, col: 1, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.DOWN, feedDirection: DIRECTIONS.UP },
+  { id: generateUid(), row: 3, col: 1, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.RIGHT, feedDirection: DIRECTIONS.UP },
+  { id: generateUid(), row: 3, col: 2, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.RIGHT, feedDirection: DIRECTIONS.LEFT },
+  { id: generateUid(), row: 3, col: 3, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.UP, feedDirection: DIRECTIONS.LEFT },
+  { id: generateUid(), row: 2, col: 3, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.UP, feedDirection: DIRECTIONS.DOWN },
+  { id: generateUid(), row: 1, col: 3, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.LEFT, feedDirection: DIRECTIONS.DOWN },
+  { id: generateUid(), row: 1, col: 2, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.DOWN, feedDirection: DIRECTIONS.RIGHT },
+  { id: generateUid(), row: 2, col: 2, isActive: true, isFrozen: false, isColumnStart: false, flowDirection: DIRECTIONS.NONE, feedDirection: DIRECTIONS.UP },
 ];
