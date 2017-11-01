@@ -20,22 +20,8 @@
 /* eslint-disable */
 
 import Tile from './Tile';
+import { ANIMATION_TIMES, DIRECTIONS } from '../shared/constants';
 import { deepCopy, deepEqual, random, waitInPromise } from '../util/util';
-
-// Animation timings
-const removeTime = 75;
-const shiftTime = 250;
-const shuffleTime = 700;
-const swapTime = 250;
-
-// Directions
-export const DIRECTIONS = {
-  DOWN: 'DOWN',
-  UP: 'UP',
-  RIGHT: 'RIGHT',
-  LEFT: 'LEFT',
-  NONE: 'NONE',
-};
 
 export default {
   name: 'Board',
@@ -72,7 +58,7 @@ export default {
       // Set the board's tiles
       this.tiles = tileCount === positionCount
         ? defaultTiles
-        : this.initTiles();
+        : this.getNewTiles();
 
       // Set other properties
       this.matches = [];
@@ -83,7 +69,7 @@ export default {
     },
 
     // Initializes new tiles
-    initTiles() {
+    getNewTiles() {
       // Reset tiles
       const tiles = [];
       const rows = this.rows;
@@ -215,7 +201,7 @@ export default {
     },
 
     // Removes all possible matches
-    // Animation timing: removeTime
+    // Animation timing: REMOVE
     removeMatches() {
       const tiles = this.tiles;
 
@@ -228,7 +214,7 @@ export default {
       // Return promise for chaining
       return Promise.resolve()
         // Wait for animation
-        .then(waitInPromise(removeTime));
+        .then(waitInPromise(ANIMATION_TIMES.REMOVE));
     },
 
     // Sets all tile's shifts
@@ -238,47 +224,52 @@ export default {
 
       // Set shifts for each tile in each column
       columnStarts.forEach((startPosition) => {
-        const newTiles = [];
-
         const shifts = [];
+        const newTiles = [];
 
         // Set non-new tile shifts
         this.reverseIterateColumn(startPosition, (curPosition) => {
           const { row, col, feedDirection } = curPosition;
 
           const tile = this.getTile(row, col);
+          const newShift = this.getOppositeDirection(feedDirection);
 
           if (tile.removed) {
-            // Add a shift
-            shifts.unshift(this.getOppositeDirection(feedDirection));
+            // Add new shift
+            shifts.unshift(newShift);
 
-            // Add tile to the newTiles list to process later
+            // Add tile to newTiles for later processing
             newTiles.push(tile);
-          } else {
+
+          } else if (shifts.length > 0) {
             // Set tile shifts
             tile.shifts = deepCopy(shifts);
+
+            // Cycle shifts
+            shifts.unshift(newShift);
+            shifts.pop();
           }
         });
 
         // Set new tile shifts and starting location
         const columnStartFlowDirection = startPosition.flowDirection;
+        const columnStartFeedDirection = this.getOppositeDirection(columnStartFlowDirection);
         let { row, col } = startPosition;
         newTiles.map((tile) => {
-          // Set new tile shifts
-          // For each new tile, cycle it's column start flowDirection into shifts
-          // so that it falls into the board correctly.
-          shifts.unshift(columnStartFlowDirection);
-          shifts.pop();
+          // Set tile shifts
           tile.shifts = deepCopy(shifts);
 
-          // Set new tile starting location
+          // Cycle shifts
+          shifts.unshift(columnStartFlowDirection);
+          shifts.pop();
+
+          // Cycle positions
           // For each new tile, move (row, col) one step 'above' the column start
           // flow direction, so that each consecutive new tile gets placed above
           // the previous one.
-          ({ row, col } = this.getNextCoordinatesFromDirection(
-            row, col,
-            this.getOppositeDirection(columnStartFlowDirection)
-          ));
+          ({ row, col } = this.getNextCoordinatesFromDirection(row, col, columnStartFeedDirection));
+
+          // Set new tile starting location
           tile.row = row;
           tile.col = col;
 
@@ -292,7 +283,7 @@ export default {
     },
 
     // Shifts all shiftable tiles
-    // Animation timing: shiftTime
+    // Animation timing: SHIFT
     shiftTiles() {
       // Filter tiles for tiles with shifts
       const shiftableTiles = this.tiles.filter((tile) => tile.shifts.length > 0);
@@ -302,7 +293,7 @@ export default {
         // Return promise for chaining
         return Promise.resolve()
           // Wait for animation
-          .then(waitInPromise(shiftTime));
+          .then(waitInPromise(ANIMATION_TIMES.SHIFT));
       }
 
       // Recursive case
@@ -322,15 +313,14 @@ export default {
           });
 
           resolve(this.shiftTiles());
-        }, shiftTime);
+        }, ANIMATION_TIMES.SHIFT);
       });
     },
 
     // Shuffles all available tiles
-    // Animation timing: shuffleTime
+    // Animation timing: SHUFFLE
     shuffleTiles() {
       if (!this.matchPossible()) {
-        console.debug('match not possible');
         return Promise.reject('No permutation of the board results in a possible move.');
       }
 
@@ -339,7 +329,6 @@ export default {
 
       // Shuffle tiles until a match is possible, but a match isn't made
       while (this.moves.length <= 0 || this.matches.length > 0) {
-        console.debug('shuffling', deepCopy(this.moves));
         for (let index = 0; index <= last; index += 1) {
           const rand = random(index, last);
           const { row: row1, col: col1 } = tiles[index];
@@ -350,18 +339,16 @@ export default {
         // Update moves and matches
         this.findMoves();
         this.findMatches();
-
-        console.debug('shuffled', deepCopy(this.moves));
       }
 
       // Return promise for chaining
       return Promise.resolve()
         // Wait for animation
-        .then(waitInPromise(shuffleTime));
+        .then(waitInPromise(ANIMATION_TIMES.SHUFFLE));
     },
 
     // Handles a board touch
-    // Animation timing: swapTime
+    // Animation timing: SWAP
     tileTouch(tile) {
       // Only allow tile touches while game is idle
       if (this.status === 'IDLE') {
@@ -381,10 +368,10 @@ export default {
             // Check for match(es)
             if (this.validMove(row, col, newRow, newCol)) {
               // Run the game loop
-              setTimeout(() => this.gameLoop(), swapTime);
+              setTimeout(() => this.gameLoop(), ANIMATION_TIMES.SWAP);
             } else {
               // Swap the two tiles back
-              setTimeout(() => this.swapTiles(row, col, newRow, newCol), swapTime);
+              setTimeout(() => this.swapTiles(row, col, newRow, newCol), ANIMATION_TIMES.SWAP);
             }
 
           } else {
@@ -484,14 +471,38 @@ export default {
     getValidLines(row, col) {
       // Sorted by preference, so that the best match is found first
       const lines = [
+        // 1x5 match w/ 2 extra
+        // 1x5 match w/ 2 extra
+        // 1x5 match w/ 1 extra
+        // 1x5 match w/ 1 extra
         // 1x5 match
         [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }],
+        // 5x1 match w/ 2 extra
+        // 5x1 match w/ 2 extra
+        // 1x5 match w/ 1 extra
+        // 1x5 match w/ 1 extra
         // 5x1 match
         [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }],
         // 1x4 match
         [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }],
         // 4x1 match
         [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }],
+        // 2x2 match w/ 1 extra (TOP_LEFT)
+        [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row - 1, col }],
+        // 2x2 match w/ 1 extra (TOP_RIGHT)
+        [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row - 1, col: col + 1 }],
+        // 2x2 match w/ 1 extra (RIGHT_TOP)
+        [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row, col: col + 2 }],
+        // 2x2 match w/ 1 extra (RIGHT_BOTTOM)
+        [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 1, col: col + 2 }],
+        // 2x2 match w/ 1 extra (BOTTOM_RIGHT)
+        [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col: col + 1 }],
+        // 2x2 match w/ 1 extra (BOTTOM_LEFT)
+        [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col }],
+        // 2x2 match w/ 1 extra (LEFT_BOTTOM)
+        [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 1, col: col - 1 }],
+        // 2x2 match w/ 1 extra (LEFT_TOP)
+        [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row, col: col - 1 }],
         // 2x2 match
         [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }],
         // 1x3 match
@@ -557,7 +568,6 @@ export default {
           tileTypes[tileType] = 1;
         }
       });
-      console.debug('checking possible matches', tileTypes);
 
       return Object.keys(tileTypes).some((type) => tileTypes[type] >= 3);
     },
@@ -619,8 +629,8 @@ $remove-time: 125ms;
 $transition-time: 300ms;
 
 // Dynamic
-@for $rows from 3 through 9 {
-  @for $cols from 3 through 9 {
+@for $rows from 2 through 9 {
+  @for $cols from 2 through 9 {
     $board-rows-count: $rows; // The number of rows in the board
     $board-cols-count: $cols; // The number of cols in the board
 
