@@ -94,13 +94,13 @@ export default {
     // The main game loop
     gameLoop() {
       // Return promise for chaining, set status to busy
-      return this.setStatus('BUSY')
+      return this.setGameStatus('BUSY')
         // Then resolve any matches
         .then(() => this.resolveMatches())
         // Then ensure that there is an available move
         .then(() => this.ensureMove())
         // Then set status to idle
-        .then(() => this.setStatus('IDLE'))
+        .then(() => this.setGameStatus('IDLE'))
         // Catch a 'game over' scenario where no moves are possible
         .catch((error) => console.log(error));
     },
@@ -153,7 +153,7 @@ export default {
         }
       });
 
-      // Sort matches by length so that we remove the better ones first
+      // Sort matches by priority so that we remove the better ones first
       this.matches = matches.sort((a, b) => a.priority > b.priority);
 
       // Return promise for chaining
@@ -301,6 +301,8 @@ export default {
           .then(waitInPromise(ANIMATION_TIMES.SHIFT));
       }
 
+      // TODO: fix this promise creating a warning
+      debugger;
       // Recursive case
       return new Promise((resolve) => {
         setTimeout(() => {
@@ -370,7 +372,7 @@ export default {
             // Swap the two tiles
             this.swapTiles(row, col, newRow, newCol);
 
-            // Check if this ia move that makes a match
+            // Check if this is move that makes a match
             if (this.validMove(row, col, newRow, newCol)) {
               // Run the game loop
               setTimeout(() => this.gameLoop(), ANIMATION_TIMES.SWAP);
@@ -399,7 +401,7 @@ export default {
      * Helper Functions
      */
 
-    setStatus(status) {
+    setGameStatus(status) {
       this.status = status;
 
       // Return promise for chaining
@@ -656,7 +658,7 @@ export default {
       );
     },
   },
-  mounted() {
+  created() {
     this.newGame();
   },
 };
@@ -664,7 +666,7 @@ export default {
 
 <!-- Add "scoped" attribute to limit CSS to this component only -->
 <style lang="scss">
-@import "../assets/scss/functions";
+@import "~style/functions";
 
 // Static
 $board-width: 700px;  // The width of the board
