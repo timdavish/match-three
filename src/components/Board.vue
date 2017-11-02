@@ -10,7 +10,7 @@
         v-for="tile in tiles" :key="tile.id"
         :tile="tile"
         :selected="selectedTile"
-        @touch="tileTouch(tile)">
+        @touch="tileTouch">
       </tile>
     </transition-group>
   </div>
@@ -117,6 +117,7 @@ export default {
 
       // Return promise for chaining
       return this.removeMatches()
+        .then((points) => this.updateScore(points))
         .then(() => this.setTileShifts())
         .then(() => this.shiftTiles())
         .then(() => this.resolveMatches());
@@ -154,7 +155,15 @@ export default {
       });
 
       // Sort matches by priority so that we remove the better ones first
-      this.matches = matches.sort((a, b) => a.priority > b.priority);
+      this.matches = matches.sort((a, b) => {
+        // Ascending priority sort
+        const priorityDiff = a.priority - b.priority;
+
+        return priorityDiff === 0
+          // Descending length sort
+          ? b.positions.length - a.positions.length
+          : priorityDiff;
+      });
 
       // Return promise for chaining
       return Promise.resolve();
@@ -210,16 +219,28 @@ export default {
     removeMatches() {
       const tiles = this.tiles;
 
+      let points = 0;
+
       for (let match of this.matches) {
         if (this.validMatch(match)) {
+          // Set tile as removed
           match.positions.forEach((p) => this.getTile(p.row, p.col).removed = true );
+
+          // Set points for scoring
+          points += match.positions.length * 50;
+          points += this.getMatchBonusPoints(match.priority);
         }
       }
 
       // Return promise for chaining
-      return Promise.resolve()
+      return Promise.resolve(points)
         // Wait for animation
         .then(waitInPromise(ANIMATION_TIMES.REMOVE));
+    },
+
+    // Update the level's total score
+    updateScore(points) {
+      this.$emit('updateScore', points);
     },
 
     // Sets all tile's shifts
@@ -301,8 +322,6 @@ export default {
           .then(waitInPromise(ANIMATION_TIMES.SHIFT));
       }
 
-      // TODO: fix this promise creating a warning
-      debugger;
       // Recursive case
       return new Promise((resolve) => {
         setTimeout(() => {
@@ -480,51 +499,51 @@ export default {
       const lines = [
         // Priority 1
         // Color Bomb (Horizontal)
-        { priority: 1, positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }] },
+        { priority: 2, positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }] },
         // Color Bomb (Vertical)
-        { priority: 1, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }] },
+        { priority: 2, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }] },
 
         // Priority 2
         // Wrapped Candy (Corner, pointing UP_LEFT)
-        { priority: 2, positions: [{ row, col }, { row: row - 1, col }, { row: row - 2, col }, { row, col: col - 1 }, { row, col: col - 2 }] },
+        { priority: 3, positions: [{ row, col }, { row: row - 1, col }, { row: row - 2, col }, { row, col: col - 1 }, { row, col: col - 2 }] },
         // Wrapped Candy (Corner, pointing UP_RIGHT)
-        { priority: 2, positions: [{ row, col }, { row: row - 1, col }, { row: row - 2, col }, { row, col: col + 1 }, { row, col: col + 2 }] },
+        { priority: 3, positions: [{ row, col }, { row: row - 1, col }, { row: row - 2, col }, { row, col: col + 1 }, { row, col: col + 2 }] },
         // Wrapped Candy (Corner, pointing DOWN_RIGHT)
-        { priority: 2, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row, col: col + 1 }, { row, col: col + 2 }] },
+        { priority: 3, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row, col: col + 1 }, { row, col: col + 2 }] },
         // Wrapped Candy (Corner, pointing DOWN_LEFT)
-        { priority: 2, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row, col: col - 1 }, { row, col: col - 2 }] },
+        { priority: 3, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row, col: col - 1 }, { row, col: col - 2 }] },
         // Wrapped Candy (Middle, pointing UP)
-        { priority: 2, positions: [{ row, col: col - 1 }, { row, col }, { row, col: col + 1 }, { row: row - 1, col }, { row: row - 2, col }] },
+        { priority: 3, positions: [{ row, col: col - 1 }, { row, col }, { row, col: col + 1 }, { row: row - 1, col }, { row: row - 2, col }] },
         // Wrapped Candy (Middle, pointing RIGHT)
-        { priority: 2, positions: [{ row: row - 1, col }, { row, col }, { row: row + 1, col }, { row, col: col + 1 }, { row, col: col + 2 }] },
+        { priority: 3, positions: [{ row: row - 1, col }, { row, col }, { row: row + 1, col }, { row, col: col + 1 }, { row, col: col + 2 }] },
         // Wrapped Candy (Middle, pointing DOWN)
-        { priority: 2, positions: [{ row, col: col - 1 }, { row, col }, { row, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col }] },
+        { priority: 3, positions: [{ row, col: col - 1 }, { row, col }, { row, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col }] },
         // Wrapped Candy (Middle, pointing LEFT)
-        { priority: 2, positions: [{ row: row - 1, col }, { row, col }, { row: row + 1, col }, { row, col: col - 1 }, { row, col: col - 2 }] },
+        { priority: 3, positions: [{ row: row - 1, col }, { row, col }, { row: row + 1, col }, { row, col: col - 1 }, { row, col: col - 2 }] },
 
         // Priority 3
         // Striped Candy (Horizontal)
-        { priority: 3, positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }] },
+        { priority: 4, positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }] },
         // Striped Candy (Vertical)
-        { priority: 3, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }] },
+        { priority: 4, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }] },
 
         // Priority 4
         // Fish (With 1 extra TOP_LEFT)
-        { priority: 4, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row - 1, col }] },
+        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row - 1, col }] },
         // Fish (With 1 extra TOP_RIGHT)
-        { priority: 4, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row - 1, col: col + 1 }] },
+        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row - 1, col: col + 1 }] },
         // Fish (With 1 extra RIGHT_TOP)
-        { priority: 4, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row, col: col + 2 }] },
+        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row, col: col + 2 }] },
         // Fish (With 1 extra RIGHT_BOTTOM)
-        { priority: 4, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 1, col: col + 2 }] },
+        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 1, col: col + 2 }] },
         // Fish (With 1 extra BOTTOM_RIGHT)
-        { priority: 4, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col: col + 1 }] },
+        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col: col + 1 }] },
         // Fish (With 1 extra BOTTOM_LEFT)
-        { priority: 4, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col }] },
+        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col }] },
         // Fish (With 1 extra LEFT_BOTTOM)
-        { priority: 4, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 1, col: col - 1 }] },
+        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 1, col: col - 1 }] },
         // Fish (With 1 extra LEFT_TOP)
-        { priority: 4, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row, col: col - 1 }] },
+        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row, col: col - 1 }] },
 
         // Priority 5
         // Fish
@@ -581,6 +600,23 @@ export default {
 
     coordinatesToIndex(pos) {
       return (pos.row * this.cols) + pos.col;
+    },
+
+    getMatchBonusPoints(priority) {
+      switch (priority) {
+        // Painter
+        case 1: return 200;
+        // Bomb
+        case 2: return 150;
+        // Wrapped
+        case 3: return 125;
+        // Striped
+        case 4: return 100;
+        // Fish
+        case 5: return 100;
+        // Regular
+        default: return 0;
+      }
     },
 
     /**

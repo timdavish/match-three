@@ -8,7 +8,8 @@
 
     <board
       :boardData="boardData"
-      @successfulMove="decrementMoves()">
+      @successfulMove="decrementMoves"
+      @updateScore="updateScore">
     </board>
   </div>
 </template>
@@ -52,6 +53,14 @@ export default {
     },
     decrementMoves() {
       this.moveCount -= 1;
+    },
+    updateScore(points) {
+      const newScore = this.currentScore + points;
+
+      this.currentScore = newScore;
+      if (newScore > this.highScore) {
+        this.highScore = newScore;
+      }
     },
   },
   created() {
