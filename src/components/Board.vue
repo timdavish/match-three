@@ -154,7 +154,8 @@ export default {
         }
       });
 
-      // Sort matches by priority so that we remove the better ones first
+      // Sort matches by priority ascending, length descending
+      // This allows us to remove the ones that we consider 'better', first
       this.matches = matches.sort((a, b) => {
         // Ascending priority sort
         const priorityDiff = a.priority - b.priority;
@@ -498,12 +499,30 @@ export default {
     getValidLines(row, col) {
       const lines = [
         // Priority 1
+        // Color Painter (Horizontal, pointing UP with 1 extra UP)
+        { priority: 1, positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }, { row: row - 1, col: col + 2 }, { row: row - 2, col: col + 2 }] },
+        // Color Painter (Horizontal, pointing DOWN with 1 extra DOWN)
+        { priority: 1, positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }, { row: row + 1, col: col + 2 }, { row: row + 2, col: col + 2 }] },
+        // Color Painter (Vertical, pointing LEFT with 1 extra LEFT)
+        { priority: 1, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }, { row: row + 2, col: col - 1 }, { row: row + 2, col: col - 2 }] },
+        // Color Painter (Vertical, pointing RIGHT with 1 extra RIGHT)
+        { priority: 1, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }, { row: row + 2, col: col + 1 }, { row: row + 2, col: col + 2 }] },
+        // Color Painter (Horizontal, pointing UP)
+        { priority: 1, positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }, { row: row - 1, col: col + 2 }] },
+        // Color Painter (Horizontal, pointing DOWN)
+        { priority: 1, positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }, { row: row + 1, col: col + 2 }] },
+        // Color Painter (Vertical, pointing LEFT)
+        { priority: 1, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }, { row: row + 2, col: col - 1 }] },
+        // Color Painter (Vertical, pointing RIGHT)
+        { priority: 1, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }, { row: row + 2, col: col + 1 }] },
+
+        // Priority 2
         // Color Bomb (Horizontal)
         { priority: 2, positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }] },
         // Color Bomb (Vertical)
         { priority: 2, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }] },
 
-        // Priority 2
+        // Priority 3
         // Wrapped Candy (Corner, pointing UP_LEFT)
         { priority: 3, positions: [{ row, col }, { row: row - 1, col }, { row: row - 2, col }, { row, col: col - 1 }, { row, col: col - 2 }] },
         // Wrapped Candy (Corner, pointing UP_RIGHT)
@@ -521,32 +540,30 @@ export default {
         // Wrapped Candy (Middle, pointing LEFT)
         { priority: 3, positions: [{ row: row - 1, col }, { row, col }, { row: row + 1, col }, { row, col: col - 1 }, { row, col: col - 2 }] },
 
-        // Priority 3
+        // Priority 4
         // Striped Candy (Horizontal)
         { priority: 4, positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }] },
         // Striped Candy (Vertical)
         { priority: 4, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }] },
 
-        // Priority 4
-        // Fish (With 1 extra TOP_LEFT)
-        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row - 1, col }] },
-        // Fish (With 1 extra TOP_RIGHT)
-        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row - 1, col: col + 1 }] },
-        // Fish (With 1 extra RIGHT_TOP)
-        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row, col: col + 2 }] },
-        // Fish (With 1 extra RIGHT_BOTTOM)
-        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 1, col: col + 2 }] },
-        // Fish (With 1 extra BOTTOM_RIGHT)
-        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col: col + 1 }] },
-        // Fish (With 1 extra BOTTOM_LEFT)
-        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col }] },
-        // Fish (With 1 extra LEFT_BOTTOM)
-        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 1, col: col - 1 }] },
-        // Fish (With 1 extra LEFT_TOP)
-        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row, col: col - 1 }] },
-
         // Priority 5
-        // Fish
+        // Fish (With 1 extra UP_LEFT)
+        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row - 1, col }] },
+        // Fish (With 1 extra UP_RIGHT)
+        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row - 1, col: col + 1 }] },
+        // Fish (With 1 extra RIGHT_UP)
+        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row, col: col + 2 }] },
+        // Fish (With 1 extra RIGHT_DOWN)
+        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 1, col: col + 2 }] },
+        // Fish (With 1 extra DOWN_RIGHT)
+        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col: col + 1 }] },
+        // Fish (With 1 extra DOWN_LEFT)
+        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col }] },
+        // Fish (With 1 extra LEFT_DOWN)
+        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 1, col: col - 1 }] },
+        // Fish (With 1 extra LEFT_UP)
+        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row, col: col - 1 }] },
+        // Fish (Normal)
         { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }] },
 
         // Priority 9
