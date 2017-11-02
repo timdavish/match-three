@@ -58,7 +58,7 @@ export default {
       // Set the board's tiles
       this.tiles = tileCount === positionCount
         ? defaultTiles
-        : this.getNewTiles();
+        : this.getStartingTiles();
 
       // Set other properties
       this.matches = [];
@@ -68,8 +68,8 @@ export default {
       this.gameLoop();
     },
 
-    // Initializes new tiles
-    getNewTiles() {
+    // Initializes new starting tiles
+    getStartingTiles() {
       // Reset tiles
       const tiles = [];
       const rows = this.rows;
@@ -77,9 +77,14 @@ export default {
 
       for (let row = 0; row < rows; row += 1) {
         for (let col = 0; col < cols; col += 1) {
-          const id = this.coordinatesToIndex({ row, col });
-          const tile = { id, row, col, type: this.getRandomTileType(), shifts: [], removed: false };
-          tiles.push(tile);
+          tiles.push({
+            id: this.coordinatesToIndex({ row, col }),
+            row,
+            col,
+            type: this.getRandomTileType(),
+            shifts: [],
+            removed: false
+          });
         }
       }
 
@@ -149,7 +154,7 @@ export default {
       });
 
       // Sort matches by length so that we remove the better ones first
-      this.matches = matches.sort((a, b) => a.length < b.length);
+      this.matches = matches.sort((a, b) => a.priority > b.priority);
 
       // Return promise for chaining
       return Promise.resolve();
@@ -207,7 +212,7 @@ export default {
 
       for (let match of this.matches) {
         if (this.validMatch(match)) {
-          match.forEach((v) => this.getTile(v.row, v.col).removed = true );
+          match.positions.forEach((p) => this.getTile(p.row, p.col).removed = true );
         }
       }
 
@@ -365,7 +370,7 @@ export default {
             // Swap the two tiles
             this.swapTiles(row, col, newRow, newCol);
 
-            // Check for match(es)
+            // Check if this ia move that makes a match
             if (this.validMove(row, col, newRow, newCol)) {
               // Run the game loop
               setTimeout(() => this.gameLoop(), ANIMATION_TIMES.SWAP);
@@ -445,7 +450,8 @@ export default {
     calculateBestMatch(row, col) {
       let match = null;
 
-      // Lines are sorted by preference, so that the best match is found first
+      // Lines are sorted by priority, so that the best match is found first
+      // This allows us to short circuit the search below
       const lines = this.getValidLines(row, col);
 
       if (lines.length > 0) {
@@ -454,7 +460,7 @@ export default {
         // Loop through the lines
         lines.some((line) => {
           // We have a match if for every index in the line the tile type is the same
-          const hasMatch = line.every((v) => this.getTile(v.row, v.col).type === type);
+          const hasMatch = line.positions.every((p) => this.getTile(p.row, p.col).type === type);
 
           if (hasMatch) {
             match = line;
@@ -469,56 +475,74 @@ export default {
     },
 
     getValidLines(row, col) {
-      // Sorted by preference, so that the best match is found first
       const lines = [
-        // 1x5 match w/ 2 extra
-        // 1x5 match w/ 2 extra
-        // 1x5 match w/ 1 extra
-        // 1x5 match w/ 1 extra
-        // 1x5 match
-        [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }],
-        // 5x1 match w/ 2 extra
-        // 5x1 match w/ 2 extra
-        // 1x5 match w/ 1 extra
-        // 1x5 match w/ 1 extra
-        // 5x1 match
-        [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }],
-        // 1x4 match
-        [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }],
-        // 4x1 match
-        [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }],
-        // 2x2 match w/ 1 extra (TOP_LEFT)
-        [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row - 1, col }],
-        // 2x2 match w/ 1 extra (TOP_RIGHT)
-        [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row - 1, col: col + 1 }],
-        // 2x2 match w/ 1 extra (RIGHT_TOP)
-        [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row, col: col + 2 }],
-        // 2x2 match w/ 1 extra (RIGHT_BOTTOM)
-        [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 1, col: col + 2 }],
-        // 2x2 match w/ 1 extra (BOTTOM_RIGHT)
-        [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col: col + 1 }],
-        // 2x2 match w/ 1 extra (BOTTOM_LEFT)
-        [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col }],
-        // 2x2 match w/ 1 extra (LEFT_BOTTOM)
-        [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 1, col: col - 1 }],
-        // 2x2 match w/ 1 extra (LEFT_TOP)
-        [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row, col: col - 1 }],
-        // 2x2 match
-        [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }],
-        // 1x3 match
-        [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }],
-        // 3x1 match
-        [{ row, col }, { row: row + 1, col }, { row: row + 2, col }],
+        // Priority 1
+        // Color Bomb (Horizontal)
+        { priority: 1, positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }] },
+        // Color Bomb (Vertical)
+        { priority: 1, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }] },
+
+        // Priority 2
+        // Wrapped Candy (Corner, pointing UP_LEFT)
+        { priority: 2, positions: [{ row, col }, { row: row - 1, col }, { row: row - 2, col }, { row, col: col - 1 }, { row, col: col - 2 }] },
+        // Wrapped Candy (Corner, pointing UP_RIGHT)
+        { priority: 2, positions: [{ row, col }, { row: row - 1, col }, { row: row - 2, col }, { row, col: col + 1 }, { row, col: col + 2 }] },
+        // Wrapped Candy (Corner, pointing DOWN_RIGHT)
+        { priority: 2, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row, col: col + 1 }, { row, col: col + 2 }] },
+        // Wrapped Candy (Corner, pointing DOWN_LEFT)
+        { priority: 2, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row, col: col - 1 }, { row, col: col - 2 }] },
+        // Wrapped Candy (Middle, pointing UP)
+        { priority: 2, positions: [{ row, col: col - 1 }, { row, col }, { row, col: col + 1 }, { row: row - 1, col }, { row: row - 2, col }] },
+        // Wrapped Candy (Middle, pointing RIGHT)
+        { priority: 2, positions: [{ row: row - 1, col }, { row, col }, { row: row + 1, col }, { row, col: col + 1 }, { row, col: col + 2 }] },
+        // Wrapped Candy (Middle, pointing DOWN)
+        { priority: 2, positions: [{ row, col: col - 1 }, { row, col }, { row, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col }] },
+        // Wrapped Candy (Middle, pointing LEFT)
+        { priority: 2, positions: [{ row: row - 1, col }, { row, col }, { row: row + 1, col }, { row, col: col - 1 }, { row, col: col - 2 }] },
+
+        // Priority 3
+        // Striped Candy (Horizontal)
+        { priority: 3, positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }] },
+        // Striped Candy (Vertical)
+        { priority: 3, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }] },
+
+        // Priority 4
+        // Fish (With 1 extra TOP_LEFT)
+        { priority: 4, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row - 1, col }] },
+        // Fish (With 1 extra TOP_RIGHT)
+        { priority: 4, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row - 1, col: col + 1 }] },
+        // Fish (With 1 extra RIGHT_TOP)
+        { priority: 4, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row, col: col + 2 }] },
+        // Fish (With 1 extra RIGHT_BOTTOM)
+        { priority: 4, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 1, col: col + 2 }] },
+        // Fish (With 1 extra BOTTOM_RIGHT)
+        { priority: 4, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col: col + 1 }] },
+        // Fish (With 1 extra BOTTOM_LEFT)
+        { priority: 4, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col }] },
+        // Fish (With 1 extra LEFT_BOTTOM)
+        { priority: 4, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 1, col: col - 1 }] },
+        // Fish (With 1 extra LEFT_TOP)
+        { priority: 4, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row, col: col - 1 }] },
+
+        // Priority 5
+        // Fish
+        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }] },
+
+        // Priority 9
+        // Normal (Horizontal)
+        { priority: 9, positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }] },
+        // Normal (Vertical)
+        { priority: 9, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }] },
       ];
 
       // Filter out lines that don't fit
-      return lines.filter((line) => line.every((v) => this.withinBoard(v.row, v.col)));
+      return lines.filter((line) => line.positions.every((p) => this.withinBoard(p.row, p.col)));
     },
 
     getNextPositionFromFlow(position) {
       const { row, col, flowDirection } = position;
       const { row: nextRow, col: nextCol } =
-        this.getNextCoordinatesFromDirection(row, col, flowDirection, true);
+        this.getNextCoordinatesFromDirection(row, col, flowDirection);
 
       return this.getPosition(nextRow, nextCol);
     },
@@ -557,6 +581,10 @@ export default {
       return (pos.row * this.cols) + pos.col;
     },
 
+    /**
+     * Checks if the board contains a possible match
+     * @return {Boolean} Whether there is a possible match or not
+     */
     matchPossible() {
       const tileTypes = {};
 
@@ -569,13 +597,27 @@ export default {
         }
       });
 
+      // Check if there are 3 or more of one tile type
       return Object.keys(tileTypes).some((type) => tileTypes[type] >= 3);
     },
 
+    /**
+     * Checks if all tiles in a match are not removed
+     * @param {Match} match The match to check
+     * @return {Boolean} Whether the match is valid or not
+     */
     validMatch(match) {
-      return match.every((i) => !this.getTile(i.row, i.col).removed);
+      return match.positions.every((p) => !this.getTile(p.row, p.col).removed);
     },
 
+    /**
+     * Checks if a move is valid based on it's existence in the moves array
+     * @param {Number} row1 The first row to check
+     * @param {Number} col1 The first col to check
+     * @param {Number} row2 The second row to check
+     * @param {Number} col2 The second col to check
+     * @return {Boolean} Whether the move is valid or not
+     */
     validMove(row1, col1, row2, col2) {
       const permutations = [
         { row1, col1, row2, col2 },
@@ -585,6 +627,14 @@ export default {
       return this.moves.some((move) => permutations.some((p) => deepEqual(move, p)));
     },
 
+    /**
+     * Checks if two positions are adjacent
+     * @param {Number} row1 The first row to check
+     * @param {Number} col1 The first col to check
+     * @param {Number} row2 The second row to check
+     * @param {Number} col2 The second col to check
+     * @return {Boolean} Whether the given positions are adjacent or not
+     */
     validNeighbor(row1, col1, row2, col2) {
       return (
         this.withinBoard(row1, col1) && this.withinBoard(row2, col2) &&
@@ -593,6 +643,12 @@ export default {
       );
     },
 
+    /**
+     * Checks if a position is within the board
+     * @param {Number} row The row to check
+     * @param {Number} col The col to check
+     * @return {Boolean} Whether the given position is within the board or not
+     */
     withinBoard(row, col) {
       return (
         row >= 0 && row < this.rows &&
