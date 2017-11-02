@@ -394,8 +394,11 @@ export default {
 
             // Check if this is move that makes a match
             if (this.validMove(row, col, newRow, newCol)) {
-              // Run the game loop
-              setTimeout(() => this.gameLoop(), ANIMATION_TIMES.SWAP);
+              // Decrement moves and run the game loop
+              setTimeout(() => {
+                this.updateMoves();
+                this.gameLoop();
+              }, ANIMATION_TIMES.SWAP);
             } else {
               // Swap the two tiles back
               setTimeout(() => this.swapTiles(row, col, newRow, newCol), ANIMATION_TIMES.SWAP);
@@ -415,6 +418,11 @@ export default {
 
       // Return promise for chaining
       return Promise.resolve();
+    },
+
+    // Update the level's moves
+    updateMoves(moves = -1) {
+      this.$emit('updateMoves', moves);
     },
 
     /**
