@@ -20,7 +20,7 @@
 /* eslint-disable */
 
 import Tile from './Tile';
-import { ANIMATION_TIMES, DIRECTIONS } from '../shared/constants';
+import { ANIMATION_TIMES, DIRECTIONS, SPECIALS, VECTORS } from '../shared/constants';
 import { deepCopy, deepEqual, random, waitInPromise } from '../util/util';
 
 export default {
@@ -82,6 +82,7 @@ export default {
             row,
             col,
             type: this.getRandomTileType(),
+            special: SPECIALS.NONE,
             shifts: [],
             removed: false
           });
@@ -117,7 +118,8 @@ export default {
 
       // Return promise for chaining
       return this.removeMatches()
-        .then((points) => this.updateScore(points))
+        .then((_) => this.updateScore(_))
+        .then((_) => this.setSpecialTiles(_))
         .then(() => this.setTileShifts())
         .then(() => this.shiftTiles())
         .then(() => this.resolveMatches());
@@ -220,28 +222,97 @@ export default {
     removeMatches() {
       const tiles = this.tiles;
 
-      let points = 0;
+      // Keep track of removed matches to pass down the chain
+      let removedMatches = [];
+      // Keep track of collatoral tiles to remove after immediate matches are removed
+      let collatoralTiles = [];
 
       for (let match of this.matches) {
         if (this.validMatch(match)) {
-          // Set tile as removed
-          match.positions.forEach((p) => this.getTile(p.row, p.col).removed = true );
+          match.positions.forEach((p) => {
+            const { row, col } = p;
+            const tile = this.getTile(row, col);
 
-          // Set points for scoring
-          points += match.positions.length * 50;
-          points += this.getMatchBonusPoints(match.priority);
+            // Handle special tiles
+            switch (tile.special) {
+              case SPECIALS.PAINTER: {
+                console.log('painter go boom');
+                break;
+              }
+              case SPECIALS.BOMB: {
+                console.log('bomb go boom');
+                break;
+              }
+              case SPECIALS.WRAPPED: {
+                console.log('wrapped go boom');
+                break;
+              }
+              case SPECIALS.STRIPED_H: {
+                console.log('horizontal facing striped go boom');
+                break;
+              }
+              case SPECIALS.STRIPED_V: {
+                console.log('vertical facing striped go boom');
+                break;
+              }
+              case SPECIALS.FISH: {
+                console.log('fish go boom');
+                break;
+              }
+              default: break;
+            }
+
+            // Remove the tile normally
+            this.removeTile(tile);
+          });
+
+          removedMatches.push(match);
         }
       }
 
+      // Remove collatoral tiles
+      collatoralTiles.forEach((t) => this.removeTile(t));
+
       // Return promise for chaining
-      return Promise.resolve(points)
+      return Promise.resolve(removedMatches)
         // Wait for animation
         .then(waitInPromise(ANIMATION_TIMES.REMOVE));
     },
 
     // Update the level's total score
-    updateScore(points) {
+    updateScore(removedMatches) {
+      let points = 0;
+
+      // Set points for scoring
+      for (let match of removedMatches) {
+        points += match.positions.length * 50;
+        points += match.bonusPoints;
+      }
+
       this.$emit('updateScore', points);
+
+      // Return promise for chaining
+      return Promise.resolve(removedMatches);
+    },
+
+    // Set any special tiles that were created
+    setSpecialTiles(removedMatches) {
+      for (let match of removedMatches) {
+        const special = match.special;
+
+        if (special !== SPECIALS.NONE) {
+          // TODO: if this special was created directly by the user, set the
+          // tile at the swap position
+          const pos = null || match.positions[0];
+          const tile = this.getTile(pos.row, pos.col);
+
+          tile.removed = false;
+          tile.special = special;
+        }
+      }
+
+      // Return promise for chaining
+      return Promise.resolve(removedMatches);
     },
 
     // Sets all tile's shifts
@@ -294,7 +365,7 @@ export default {
           // For each new tile, move (row, col) one step 'above' the column start
           // flow direction, so that each consecutive new tile gets placed above
           // the previous one.
-          ({ row, col } = this.getNextCoordinatesFromDirection(row, col, columnStartFeedDirection));
+          ({ row, col } = this.getCoordinatesInDirection(row, col, columnStartFeedDirection));
 
           // Set new tile starting location
           tile.row = row;
@@ -329,7 +400,7 @@ export default {
           shiftableTiles.forEach((tile) => {
             const direction = tile.shifts.shift();
 
-            let { row, col } = this.getNextCoordinatesFromDirection(tile.row, tile.col, direction);
+            let { row, col } = this.getCoordinatesInDirection(tile.row, tile.col, direction);
 
             tile.row = row;
             tile.col = col;
@@ -384,7 +455,7 @@ export default {
 
         // Check if the position is selectable
         if (!selected || row !== newRow || col !== newCol) {
-          // Check if the position is a current neighbor
+          // Check if the position is an edge neighbor
           if (this.validNeighbor(row, col, newRow, newCol)) {
             // Remove board selection
             this.selectedTile = { selected: false, row: null, col: null, neighbors: [] };
@@ -461,6 +532,15 @@ export default {
       tile.col = col;
     },
 
+    removeTile(tile) {
+      tile.removed = true;
+      tile.special = SPECIALS.NONE;
+    },
+
+    coordinatesToIndex(pos) {
+      return (pos.row * this.cols) + pos.col;
+    },
+
     reverseIterateColumn(position, func) {
       // Recurse until this column stops
       if (position.flowDirection !== 'NONE') {
@@ -506,79 +586,234 @@ export default {
 
     getValidLines(row, col) {
       const lines = [
-        // Priority 1
+        // Priority 1: Color Painters
         // Color Painter (Horizontal, pointing UP with 1 extra UP)
-        { priority: 1, positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }, { row: row - 1, col: col + 2 }, { row: row - 2, col: col + 2 }] },
+        {
+          priority: 1,
+          special: SPECIALS.PAINTER,
+          bonusPoints: 200,
+          positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }, { row: row - 1, col: col + 2 }, { row: row - 2, col: col + 2 }]
+        },
         // Color Painter (Horizontal, pointing DOWN with 1 extra DOWN)
-        { priority: 1, positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }, { row: row + 1, col: col + 2 }, { row: row + 2, col: col + 2 }] },
+        {
+          priority: 1,
+          special: SPECIALS.PAINTER,
+          bonusPoints: 200,
+          positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }, { row: row + 1, col: col + 2 }, { row: row + 2, col: col + 2 }]
+        },
         // Color Painter (Vertical, pointing LEFT with 1 extra LEFT)
-        { priority: 1, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }, { row: row + 2, col: col - 1 }, { row: row + 2, col: col - 2 }] },
+        {
+          priority: 1,
+          special: SPECIALS.PAINTER,
+          bonusPoints: 200,
+          positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }, { row: row + 2, col: col - 1 }, { row: row + 2, col: col - 2 }]
+        },
         // Color Painter (Vertical, pointing RIGHT with 1 extra RIGHT)
-        { priority: 1, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }, { row: row + 2, col: col + 1 }, { row: row + 2, col: col + 2 }] },
+        {
+          priority: 1,
+          special: SPECIALS.PAINTER,
+          bonusPoints: 200,
+          positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }, { row: row + 2, col: col + 1 }, { row: row + 2, col: col + 2 }]
+        },
         // Color Painter (Horizontal, pointing UP)
-        { priority: 1, positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }, { row: row - 1, col: col + 2 }] },
+        {
+          priority: 1,
+          special: SPECIALS.PAINTER,
+          bonusPoints: 200,
+          positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }, { row: row - 1, col: col + 2 }]
+        },
         // Color Painter (Horizontal, pointing DOWN)
-        { priority: 1, positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }, { row: row + 1, col: col + 2 }] },
+        {
+          priority: 1,
+          special: SPECIALS.PAINTER,
+          bonusPoints: 200,
+          positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }, { row: row + 1, col: col + 2 }]
+        },
         // Color Painter (Vertical, pointing LEFT)
-        { priority: 1, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }, { row: row + 2, col: col - 1 }] },
+        {
+          priority: 1,
+          special: SPECIALS.PAINTER,
+          bonusPoints: 200,
+          positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }, { row: row + 2, col: col - 1 }]
+        },
         // Color Painter (Vertical, pointing RIGHT)
-        { priority: 1, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }, { row: row + 2, col: col + 1 }] },
+        {
+          priority: 1,
+          special: SPECIALS.PAINTER,
+          bonusPoints: 200,
+          positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }, { row: row + 2, col: col + 1 }]
+        },
 
-        // Priority 2
+        // Priority 2: Color Bombs
         // Color Bomb (Horizontal)
-        { priority: 2, positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }] },
+        {
+          priority: 2,
+          special: SPECIALS.BOMB,
+          bonusPoints: 150,
+          positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }]
+        },
         // Color Bomb (Vertical)
-        { priority: 2, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }] },
+        {
+          priority: 2,
+          special: SPECIALS.BOMB,
+          bonusPoints: 150,
+          positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }]
+        },
 
-        // Priority 3
+        // Priority 3: Wrapped
         // Wrapped Candy (Corner, pointing UP_LEFT)
-        { priority: 3, positions: [{ row, col }, { row: row - 1, col }, { row: row - 2, col }, { row, col: col - 1 }, { row, col: col - 2 }] },
+        {
+          priority: 3,
+          special: SPECIALS.WRAPPED,
+          bonusPoints: 125,
+          positions: [{ row, col }, { row: row - 1, col }, { row: row - 2, col }, { row, col: col - 1 }, { row, col: col - 2 }]
+        },
         // Wrapped Candy (Corner, pointing UP_RIGHT)
-        { priority: 3, positions: [{ row, col }, { row: row - 1, col }, { row: row - 2, col }, { row, col: col + 1 }, { row, col: col + 2 }] },
+        {
+          priority: 3,
+          special: SPECIALS.WRAPPED,
+          bonusPoints: 125,
+          positions: [{ row, col }, { row: row - 1, col }, { row: row - 2, col }, { row, col: col + 1 }, { row, col: col + 2 }]
+        },
         // Wrapped Candy (Corner, pointing DOWN_RIGHT)
-        { priority: 3, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row, col: col + 1 }, { row, col: col + 2 }] },
+        {
+          priority: 3,
+          special: SPECIALS.WRAPPED,
+          bonusPoints: 125,
+          positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row, col: col + 1 }, { row, col: col + 2 }]
+        },
         // Wrapped Candy (Corner, pointing DOWN_LEFT)
-        { priority: 3, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row, col: col - 1 }, { row, col: col - 2 }] },
+        {
+          priority: 3,
+          special: SPECIALS.WRAPPED,
+          bonusPoints: 125,
+          positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row, col: col - 1 }, { row, col: col - 2 }]
+        },
         // Wrapped Candy (Middle, pointing UP)
-        { priority: 3, positions: [{ row, col: col - 1 }, { row, col }, { row, col: col + 1 }, { row: row - 1, col }, { row: row - 2, col }] },
+        {
+          priority: 3,
+          special: SPECIALS.WRAPPED,
+          bonusPoints: 125,
+          positions: [{ row, col: col - 1 }, { row, col }, { row, col: col + 1 }, { row: row - 1, col }, { row: row - 2, col }]
+        },
         // Wrapped Candy (Middle, pointing RIGHT)
-        { priority: 3, positions: [{ row: row - 1, col }, { row, col }, { row: row + 1, col }, { row, col: col + 1 }, { row, col: col + 2 }] },
+        {
+          priority: 3,
+          special: SPECIALS.WRAPPED,
+          bonusPoints: 125,
+          positions: [{ row: row - 1, col }, { row, col }, { row: row + 1, col }, { row, col: col + 1 }, { row, col: col + 2 }]
+        },
         // Wrapped Candy (Middle, pointing DOWN)
-        { priority: 3, positions: [{ row, col: col - 1 }, { row, col }, { row, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col }] },
+        {
+          priority: 3,
+          special: SPECIALS.WRAPPED,
+          bonusPoints: 125,
+          positions: [{ row, col: col - 1 }, { row, col }, { row, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col }]
+        },
         // Wrapped Candy (Middle, pointing LEFT)
-        { priority: 3, positions: [{ row: row - 1, col }, { row, col }, { row: row + 1, col }, { row, col: col - 1 }, { row, col: col - 2 }] },
+        {
+          priority: 3,
+          special: SPECIALS.WRAPPED,
+          bonusPoints: 125,
+          positions: [{ row: row - 1, col }, { row, col }, { row: row + 1, col }, { row, col: col - 1 }, { row, col: col - 2 }]
+        },
 
         // Priority 4
         // Striped Candy (Horizontal)
-        { priority: 4, positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }] },
+        {
+          priority: 4,
+          special: SPECIALS.STRIPED_V,
+          bonusPoints: 100,
+          positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }]
+        },
         // Striped Candy (Vertical)
-        { priority: 4, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }] },
+        {
+          priority: 4,
+          special: SPECIALS.STRIPED_H,
+          bonusPoints: 100,
+          positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }]
+        },
 
         // Priority 5
         // Fish (With 1 extra UP_LEFT)
-        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row - 1, col }] },
+        {
+          priority: 5,
+          special: SPECIALS.FISH,
+          bonusPoints: 100,
+          positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row - 1, col }]
+        },
         // Fish (With 1 extra UP_RIGHT)
-        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row - 1, col: col + 1 }] },
+        {
+          priority: 5,
+          special: SPECIALS.FISH,
+          bonusPoints: 100,
+          positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row - 1, col: col + 1 }]
+        },
         // Fish (With 1 extra RIGHT_UP)
-        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row, col: col + 2 }] },
+        {
+          priority: 5,
+          special: SPECIALS.FISH,
+          bonusPoints: 100,
+          positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row, col: col + 2 }]
+        },
         // Fish (With 1 extra RIGHT_DOWN)
-        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 1, col: col + 2 }] },
+        {
+          priority: 5,
+          special: SPECIALS.FISH,
+          bonusPoints: 100,
+          positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 1, col: col + 2 }]
+        },
         // Fish (With 1 extra DOWN_RIGHT)
-        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col: col + 1 }] },
+        {
+          priority: 5,
+          special: SPECIALS.FISH,
+          bonusPoints: 100,
+          positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col: col + 1 }]
+        },
         // Fish (With 1 extra DOWN_LEFT)
-        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col }] },
+        {
+          priority: 5,
+          special: SPECIALS.FISH,
+          bonusPoints: 100,
+          positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col }]
+        },
         // Fish (With 1 extra LEFT_DOWN)
-        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 1, col: col - 1 }] },
+        {
+          priority: 5,
+          special: SPECIALS.FISH,
+          bonusPoints: 100,
+          positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 1, col: col - 1 }]
+        },
         // Fish (With 1 extra LEFT_UP)
-        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row, col: col - 1 }] },
+        {
+          priority: 5,
+          special: SPECIALS.FISH,
+          bonusPoints: 100,
+          positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row, col: col - 1 }]
+        },
         // Fish (Normal)
-        { priority: 5, positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }] },
+        {
+          priority: 5,
+          special: SPECIALS.FISH,
+          bonusPoints: 100,
+          positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }]
+        },
 
         // Priority 9
         // Normal (Horizontal)
-        { priority: 9, positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }] },
+        {
+          priority: 9,
+          special: SPECIALS.NONE,
+          bonusPoints: 0,
+          positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }]
+        },
         // Normal (Vertical)
-        { priority: 9, positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }] },
+        {
+          priority: 9,
+          special: SPECIALS.NONE,
+          bonusPoints: 0,
+          positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }]
+        },
       ];
 
       // Filter out lines that don't fit
@@ -587,60 +822,73 @@ export default {
 
     getNextPositionFromFlow(position) {
       const { row, col, flowDirection } = position;
-      const { row: nextRow, col: nextCol } =
-        this.getNextCoordinatesFromDirection(row, col, flowDirection);
+      const { row: nextRow, col: nextCol } = this.getCoordinatesInDirection(
+        row, col, flowDirection);
 
       return this.getPosition(nextRow, nextCol);
     },
 
-    getNextCoordinatesFromDirection(row, col, direction) {
-      switch (direction) {
-        case (DIRECTIONS.DOWN): return { row: row + 1, col };
-        case (DIRECTIONS.UP): return { row: row - 1, col };
-        case (DIRECTIONS.RIGHT): return { row, col: col + 1 };
-        case (DIRECTIONS.LEFT): return { row, col: col - 1 };
-        default: return { row, col };
-      }
+    /**
+     * Gets the coordinates in the given direction, from the given position
+     * @param {Number} row The row of the position
+     * @param {Number} col The column of the position
+     * @param {Direction} direction The direction
+     * @return {Object} The coordinates in the given direction
+     */
+    getCoordinatesInDirection(row, col, direction) {
+      const vector = VECTORS[direction];
+      return {
+        row: row + vector.row,
+        col: col + vector.col,
+      };
     },
 
+    /**
+     * Gets the valid neighbors around the given position
+     * @param {Number} row The row of the position
+     * @param {Number} col The column of the position
+     * @param {Boolean} all (Optional) Whether to get corner neighbors or not
+     * @return {Array} Array of valid neighbors
+     */
+    getValidNeighbors(row, col, all = false) {
+      const edges = [
+        this.getCoordinatesInDirection(row, col, DIRECTIONS.UP),
+        this.getCoordinatesInDirection(row, col, DIRECTIONS.RIGHT),
+        this.getCoordinatesInDirection(row, col, DIRECTIONS.DOWN),
+        this.getCoordinatesInDirection(row, col, DIRECTIONS.LEFT),
+      ];
+
+      const corners = [
+        this.getCoordinatesInDirection(row, col, DIRECTIONS.UP_LEFT),
+        this.getCoordinatesInDirection(row, col, DIRECTIONS.UP_RIGHT),
+        this.getCoordinatesInDirection(row, col, DIRECTIONS.DOWN_RIGHT),
+        this.getCoordinatesInDirection(row, col, DIRECTIONS.DOWN_LEFT),
+      ];
+
+      const neighbors = all
+        ? edges.concat(corners)
+        : edges;
+
+      return neighbors.filter(n => this.validNeighbor(row, col, n.row, n.col, all));
+    },
+
+    /**
+     * Gets the opposite direction of the given direction
+     * @param {Direction} direction The direction
+     * @return {Direction} The opposite direction
+     */
     getOppositeDirection(direction) {
       switch (direction) {
-        case (DIRECTIONS.DOWN): return DIRECTIONS.UP;
+        case (DIRECTIONS.UP_LEFT): return DIRECTIONS.DOWN_RIGHT;
         case (DIRECTIONS.UP): return DIRECTIONS.DOWN;
+        case (DIRECTIONS.UP_RIGHT): return DIRECTIONS.DOWN_LEFT;
         case (DIRECTIONS.RIGHT): return DIRECTIONS.LEFT;
+        case (DIRECTIONS.DOWN_RIGHT): return DIRECTIONS.UP_LEFT;
+        case (DIRECTIONS.DOWN): return DIRECTIONS.UP;
+        case (DIRECTIONS.DOWN_LEFT): return DIRECTIONS.UP_RIGHT;
         case (DIRECTIONS.LEFT): return DIRECTIONS.RIGHT;
+        case (DIRECTIONS.NONE): return DIRECTIONS.NONE;
         default: return direction;
-      }
-    },
-
-    getValidNeighbors(row, col) {
-      const neighbors = [
-        this.getNextCoordinatesFromDirection(row, col, DIRECTIONS.DOWN),
-        this.getNextCoordinatesFromDirection(row, col, DIRECTIONS.UP),
-        this.getNextCoordinatesFromDirection(row, col, DIRECTIONS.RIGHT),
-        this.getNextCoordinatesFromDirection(row, col, DIRECTIONS.LEFT),
-      ];
-      return neighbors.filter(n => this.validNeighbor(row, col, n.row, n.col));
-    },
-
-    coordinatesToIndex(pos) {
-      return (pos.row * this.cols) + pos.col;
-    },
-
-    getMatchBonusPoints(priority) {
-      switch (priority) {
-        // Painter
-        case 1: return 200;
-        // Bomb
-        case 2: return 150;
-        // Wrapped
-        case 3: return 125;
-        // Striped
-        case 4: return 100;
-        // Fish
-        case 5: return 100;
-        // Regular
-        default: return 0;
       }
     },
 
@@ -675,10 +923,10 @@ export default {
 
     /**
      * Checks if a move is valid based on it's existence in the moves array
-     * @param {Number} row1 The first row to check
-     * @param {Number} col1 The first col to check
-     * @param {Number} row2 The second row to check
-     * @param {Number} col2 The second col to check
+     * @param {Number} row1 The row of the first position
+     * @param {Number} col1 The column of the first position
+     * @param {Number} row2 The row of the second position
+     * @param {Number} col2 The column of the second position
      * @return {Boolean} Whether the move is valid or not
      */
     validMove(row1, col1, row2, col2) {
@@ -692,24 +940,27 @@ export default {
 
     /**
      * Checks if two positions are adjacent
-     * @param {Number} row1 The first row to check
-     * @param {Number} col1 The first col to check
-     * @param {Number} row2 The second row to check
-     * @param {Number} col2 The second col to check
+     * @param {Number} row1 The row of the first position
+     * @param {Number} col1 The column of the first position
+     * @param {Number} row2 The row of the second position
+     * @param {Number} col2 The column of the second position
      * @return {Boolean} Whether the given positions are adjacent or not
      */
-    validNeighbor(row1, col1, row2, col2) {
+    validNeighbor(row1, col1, row2, col2, all = false) {
       return (
         this.withinBoard(row1, col1) && this.withinBoard(row2, col2) &&
+        // Edge neighbors
         (Math.abs(row1 - row2) === 1 && col1 === col2) ||
-        (Math.abs(col1 - col2) === 1 && row1 === row2)
+        (Math.abs(col1 - col2) === 1 && row1 === row2) ||
+        // Corner neighbors (if all)
+        (all && Math.abs(row1 - row2) === 1 && Math.abs(col1 - col2) === 1)
       );
     },
 
     /**
      * Checks if a position is within the board
-     * @param {Number} row The row to check
-     * @param {Number} col The col to check
+     * @param {Number} row The row of the position
+     * @param {Number} col The column of the position
      * @return {Boolean} Whether the given position is within the board or not
      */
     withinBoard(row, col) {

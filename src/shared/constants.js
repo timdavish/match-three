@@ -1,9 +1,12 @@
 
 export const ANIMATION_TIMES = {
+  // General animations
   REMOVE: 75,
   SHIFT: 250,
   SHUFFLE: 700,
   SWAP: 250,
+  // Special animations
+  STRIPED: 50,
 };
 
 export const DIRECTIONS = {
@@ -37,4 +40,14 @@ export const TILETYPES = {
   PURPLE: 'PURPLE',
   RED: 'RED',
   YELLOW: 'YELLOW',
+};
+
+export const SPECIALS = {
+  PAINTER: 'PAINTER',
+  BOMB: 'BOMB',
+  WRAPPED: 'WRAPPED',
+  STRIPED_H: 'STRIPED H',
+  STRIPED_V: 'STRIPED V',
+  FISH: 'FISH',
+  NONE: '',
 };
