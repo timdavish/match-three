@@ -10,7 +10,7 @@ export function level() {
       id: 1,
       type: 'SCORE',
       moveCount: 15,
-      scoreGoals: { one: 10, two: 20, three: 30 },
+      scoreGoals: { one: 1000, two: 2000, three: 3000 },
       highScore: 0,
     },
     boardData: {
@@ -41,7 +41,7 @@ export function level() {
         TILETYPES.GREEN,
         TILETYPES.ORANGE,
         TILETYPES.PURPLE,
-        // TILETYPES.RED,
+        TILETYPES.RED,
         // TILETYPES.YELLOW,
       ],
     },

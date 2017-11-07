@@ -2,7 +2,7 @@
   <div class="level">
       <h1>Level {{ id }} ({{ type }})</h1>
       <h2>Moves: {{ moveCount }}</h2>
-      <h3>Scores: {{ scoreGoals.one }}, {{ scoreGoals.two }}, {{ scoreGoals.three }}</h3>
+      <h3>Score Goals: {{ scoreGoals.one }}, {{ scoreGoals.two }}, {{ scoreGoals.three }}</h3>
       <h3>Your score: {{ currentScore }}</h3>
       <h3>High score: {{ highScore }}</h3>
 
