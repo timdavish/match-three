@@ -1,10 +1,8 @@
 <template>
   <div class="level">
-      <h1>Level {{ id }} ({{ type }})</h1>
-      <h2>Moves: {{ moveCount }}</h2>
-      <h3>Score Goals: {{ scoreGoals.one }}, {{ scoreGoals.two }}, {{ scoreGoals.three }}</h3>
-      <h3>Your score: {{ currentScore }}</h3>
-      <h3>High score: {{ highScore }}</h3>
+    <levelInfo
+      :levelData="levelData">
+    </levelInfo>
 
     <board
       :boardData="boardData"
@@ -15,11 +13,14 @@
 </template>
 
 <script>
+import { mapActions } from 'vuex';
+
 import Board from './Board';
+import LevelInfo from './LevelInfo';
 
 export default {
   name: 'Level',
-  components: { Board },
+  components: { Board, LevelInfo },
   props: {
     levelData: {
       type: Object,
@@ -30,41 +31,15 @@ export default {
       required: true,
     },
   },
-  data() {
-    return {
-      currentScore: null,
-      highScore: null,
-      moveCount: null,
-    };
-  },
-  computed: {
-    // Level data getters
-    id() { return this.levelData.id; },
-    scoreGoals() { return this.levelData.scoreGoals; },
-    type() { return this.levelData.type; },
-  },
   methods: {
-    newGame() {
-      const { highScore, moveCount } = this.levelData;
-
-      this.currentScore = 0;
-      this.highScore = highScore;
-      this.moveCount = moveCount;
-    },
-    updateMoves(moves) {
-      this.moveCount += moves;
-    },
-    updateScore(points) {
-      const newScore = this.currentScore + points;
-
-      this.currentScore = newScore;
-      if (newScore > this.highScore) {
-        this.highScore = newScore;
-      }
-    },
+    ...mapActions({
+      newGame: 'newGame',
+      updateMoves: 'updateMoves',
+      updateScore: 'updateScore',
+    }),
   },
   created() {
-    this.newGame();
+    this.newGame(this.levelData);
   },
 };
 </script>
