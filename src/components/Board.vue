@@ -20,7 +20,7 @@
 /* eslint-disable */
 
 import Tile from './Tile';
-import { ANIMATION_TIMES, DIRECTIONS, SPECIALS, VECTORS } from '../shared/constants';
+import { ANIMATION_TIMES, DIRECTIONS, SPECIALS, STATUS, VECTORS } from '../shared/constants';
 import { deepCopy, deepEqual, random, waitInPromise } from '../util/util';
 
 export default {
@@ -34,7 +34,7 @@ export default {
   },
   data() {
     return {
-      status: 'BUSY',
+      status: STATUS.BUSY,
       tiles: null,
       matches: null,
       moves: null,
@@ -95,15 +95,23 @@ export default {
     // The main game loop
     gameLoop() {
       // Return promise for chaining, set status to busy
-      return this.setGameStatus('BUSY')
+      return this.setGameStatus(STATUS.BUSY)
         // Then resolve any matches
         .then(() => this.resolveMatches())
         // Then ensure that there is an available move
         .then(() => this.ensureMove())
         // Then set status to idle
-        .then(() => this.setGameStatus('IDLE'))
+        .then(() => this.setGameStatus(STATUS.IDLE))
         // Catch a 'game over' scenario where no moves are possible
         .catch((error) => console.log(error));
+    },
+
+    // Sets the game status
+    setGameStatus(status) {
+      this.status = status;
+
+      // Return promise for chaining
+      return Promise.resolve(status);
     },
 
     // Resolves matches
@@ -499,13 +507,6 @@ export default {
     /**
      * Helper Functions
      */
-
-    setGameStatus(status) {
-      this.status = status;
-
-      // Return promise for chaining
-      return Promise.resolve(status);
-    },
 
     getTile(row, col) {
       return this.tiles.find((t) => t.row === row && t.col === col);

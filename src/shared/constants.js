@@ -21,18 +21,6 @@ export const DIRECTIONS = {
   NONE: 'NONE',
 };
 
-export const VECTORS = {
-  UP_LEFT: { row: -1, col: -1 },
-  UP: { row: -1, col: 0 },
-  UP_RIGHT: { row: -1, col: 1 },
-  RIGHT: { row: 0, col: 1 },
-  DOWN_RIGHT: { row: 1, col: 1 },
-  DOWN: { row: 1, col: 0 },
-  DOWN_LEFT: { row: 1, col: -1 },
-  LEFT: { row: 0, col: -1 },
-  NONE: { row: 0, col: 0 },
-};
-
 export const TILETYPES = {
   BLUE: 'BLUE',
   GREEN: 'GREEN',
@@ -50,4 +38,21 @@ export const SPECIALS = {
   STRIPED_V: 'STRIPED V',
   FISH: 'FISH',
   NONE: '',
+};
+
+export const STATUS = {
+  BUSY: 'BUSY',
+  IDLE: 'IDLE',
+};
+
+export const VECTORS = {
+  UP_LEFT: { row: -1, col: -1 },
+  UP: { row: -1, col: 0 },
+  UP_RIGHT: { row: -1, col: 1 },
+  RIGHT: { row: 0, col: 1 },
+  DOWN_RIGHT: { row: 1, col: 1 },
+  DOWN: { row: 1, col: 0 },
+  DOWN_LEFT: { row: 1, col: -1 },
+  LEFT: { row: 0, col: -1 },
+  NONE: { row: 0, col: 0 },
 };
