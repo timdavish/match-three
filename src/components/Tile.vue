@@ -1,6 +1,6 @@
 <template>
-  <div :class="['tile', 'position_' + tile.row + '_' + tile.col, 'type_' + tile.type, { 'tile-new': tile.removed }]">
-    <div :class="['tile-inner', { 'tile-neighbor': isNeighbor, 'tile-selected': isSelected, 'tile-suggested': isSuggested }]"
+  <div :class="['tile', 'position_' + tile.row + '_' + tile.col, 'type_' + tile.type]">
+    <div :class="['tile-inner', { 'tile-new': isNew, 'tile-neighbor': isNeighbor, 'tile-selected': isSelected, 'tile-suggested': isSuggested }]"
       @click="$emit('touch', tile)">
       {{ tile.special }}
     </div>
@@ -25,6 +25,9 @@ export default {
     },
   },
   computed: {
+    isNew() {
+      return this.tile.removed;
+    },
     isNeighbor() {
       return this.selection.neighbors
         .some(n => n.row === this.tile.row && n.col === this.tile.col);

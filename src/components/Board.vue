@@ -21,7 +21,7 @@
 /* eslint-disable */
 
 import Tile from './Tile';
-import { ANIMATION_TIMES, DIRECTIONS, SPECIALS, STATUS, VECTORS } from '../shared/constants';
+import { DIRECTIONS, SPECIALS, STATUS, TIMES, VECTORS } from '../shared/constants';
 import { getLines } from '../shared/lines';
 import { deepCopy, deepEqual, isBlank, random, waitInPromise } from '../shared/util';
 
@@ -153,19 +153,26 @@ export default {
       });
     },
 
+    // Clears the tile selection
+    clearSelection() {
+      this.selection = { selected: false, row: null, col: null, neighbors: [] };
+    },
+
     // Gives a move suggestion
     giveSuggestion() {
-      const time = 5000;
-      console.log('giving a suggestion in', 5000, 'ms');
-
       this.suggestionTimer = setTimeout(() => {
-        console.log('suggestion given');
         const { row1, col1, row2, col2 } = this.moves[0];
         this.suggestion = { suggested: true, row1, col1, row2, col2 };
-      }, time);
+      }, TIMES.WAITS.SUGGESTION);
 
       // Return promise for chaining
       return Promise.resolve();
+    },
+
+    // Clears the move suggestion
+    clearSuggestion() {
+      clearTimeout(this.suggestionTimer);
+      this.suggestion = { suggested: false, row1: null, col1: null, row2: null, col2: null };
     },
 
     // Finds all current available matches
@@ -335,7 +342,7 @@ export default {
       // Return promise for chaining
       return Promise.resolve(removedMatches)
         // Wait for animation
-        .then(waitInPromise(ANIMATION_TIMES.REMOVE));
+        .then(waitInPromise(TIMES.ANIMATIONS.REMOVE));
     },
 
     // Update the level's total score
@@ -450,7 +457,7 @@ export default {
         // Return promise for chaining
         return Promise.resolve()
           // Wait for animation
-          .then(waitInPromise(ANIMATION_TIMES.SHIFT));
+          .then(waitInPromise(TIMES.ANIMATIONS.SHIFT));
       }
 
       // Recursive case
@@ -470,7 +477,7 @@ export default {
           });
 
           resolve(this.shiftTiles());
-        }, ANIMATION_TIMES.SHIFT);
+        }, TIMES.ANIMATIONS.SHIFT);
       });
     },
 
@@ -501,7 +508,7 @@ export default {
       // Return promise for chaining
       return Promise.resolve()
         // Wait for animation
-        .then(waitInPromise(ANIMATION_TIMES.SHUFFLE));
+        .then(waitInPromise(TIMES.ANIMATIONS.SHUFFLE));
     },
 
     // Handles a board touch
@@ -512,12 +519,18 @@ export default {
         const { selected, row, col } = this.selection;
         const { row: newRow, col: newCol } = tile;
 
+        // Clear selection and suggestion
+        this.clearSelection();
+        this.clearSuggestion();
+
+        let giveAnotherSuggestion = true;
+
         // Check if the position is selectable
         if (!selected || row !== newRow || col !== newCol) {
           // Check if the position is an edge neighbor
           if (this.validNeighbor(row, col, newRow, newCol)) {
-            // Remove board selection
-            this.selection = { selected: false, row: null, col: null, neighbors: [] };
+            // Don't give another suggestion
+            giveAnotherSuggestion = false;
 
             // Swap the two tiles
             this.swapTiles(row, col, newRow, newCol);
@@ -528,21 +541,22 @@ export default {
               setTimeout(() => {
                 this.updateMoves();
                 this.gameLoop();
-              }, ANIMATION_TIMES.SWAP);
+              }, TIMES.ANIMATIONS.SWAP);
             } else {
               // Swap the two tiles back
-              setTimeout(() => this.swapTiles(row, col, newRow, newCol), ANIMATION_TIMES.SWAP);
+              setTimeout(() => this.swapTiles(row, col, newRow, newCol), TIMES.ANIMATIONS.SWAP);
             }
 
           } else {
             // Refresh our selected position
             const newNeighbors = this.getValidNeighbors(newRow, newCol);
-
             this.selection = { selected: true, row: newRow, col: newCol, neighbors: newNeighbors };
           }
-        } else {
-          // Remove board selection
-          this.selection = { selected: false, row: null, col: null, neighbors: [] };
+        }
+
+        // See if we're supposed to give another suggestion
+        if (giveAnotherSuggestion) {
+          this.giveSuggestion();
         }
       }
 
@@ -806,6 +820,7 @@ export default {
 <!-- Add "scoped" attribute to limit CSS to this component only -->
 <style lang="scss">
 @import "~style/functions";
+@import "~style/variables";
 
 // Static
 $board-width: 700px;  // The width of the board
@@ -815,14 +830,15 @@ $tile-padding: 4px; // Padding between tiles
 $tile-radius: 3px; // Border radius on tiles
 $tile-font: 'Open Sans', sans-serif;
 
-$colors: blue,
-         green,
-         orange,
-         purple,
-         red,
-         yellow;
+$colors: $blue,
+         $green,
+         $orange,
+         $purple,
+         $red,
+         $yellow;
 
-$remove-time: 125ms;
+$remove-time: 175ms;
+$suggest-time: 2000ms;
 $transition-time: 300ms;
 
 // Dynamic
@@ -885,21 +901,21 @@ $transition-time: 300ms;
             @include border-radius($tile-radius);
           }
 
-          &.tile-new .tile-inner {
+          .tile-new {
             @include animation(pop $remove-time);
             opacity: 0;
           }
 
           .tile-neighbor {
-            border: 2px solid black;
+            border: 2px solid $black;
           }
 
           .tile-selected {
-            border: 2px solid yellow;
+            border: 2px solid $yellow;
           }
 
           .tile-suggested {
-            @include animation(pop 500ms);
+            @include animation(suggest $suggest-time);
             animation-iteration-count: infinite;
           }
 
@@ -931,7 +947,7 @@ $transition-time: 300ms;
     }
 
     .border-BUSY {
-      border-color: red;
+      border-color: $red;
     }
   }
 }
@@ -968,23 +984,41 @@ $transition-time: 300ms;
 }
 
 @include keyframes(suggest) {
-
-}
-
-// Declare transition
-.fade-move, .fade-enter-active, .fade-leave-active {
-  transition: all .5s cubic-bezier(.55, 0, .1, 1);
-}
-
-// Declare enter from and leave to state
-.fade-enter, .fade-leave-to {
-  opacity: 0;
-  transform: scaleY(0.01) translate(30px, 0);
-}
-
-// Ensure leaving items are taken out of layout flow so that moving
-// animations can be calculated correctly
-.fade-leave-active {
-  position: absolute;
+  0% {
+    box-shadow: 0 0 4px $gray-dark;
+  }
+  2.5% {
+    @include transform(translate(-2px, 0));
+  }
+  5% {
+    @include transform(translate(1px, 0));
+  }
+  7.5% {
+    @include transform(translate(5px, 0));
+  }
+  10% {
+    @include transform(translate(0, 0));
+  }
+  12.5% {
+    @include transform(translate(-6px, 0));
+  }
+  15% {
+    @include transform(translate(1px, 0))
+  }
+  25% {
+    @include transform(rotate(2deg));
+  }
+  40% {
+    @include transform(rotate(-1deg));
+  }
+  50% {
+    box-shadow: 0 0 11px $gray-dark;
+  }
+  60% {
+    @include transform(rotate(0));
+  }
+  100% {
+    box-shadow: 0 0 4px $gray-dark;
+  }
 }
 </style>
