@@ -1,5 +1,5 @@
 <template>
-  <div class="levelInfo">
+  <div class="level-info">
     <h1>Level {{ id }} ({{ type }})</h1>
     <h2>Moves: {{ moveCount }}</h2>
     <h3>Score Goals: {{ scoreGoals.one }}, {{ scoreGoals.two }}, {{ scoreGoals.three }}</h3>

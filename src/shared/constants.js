@@ -23,15 +23,17 @@ export const TILETYPES = {
 export const TIMES = {
   ANIMATIONS: {
     // General animations
-    REMOVE: 75,
+    REMOVE: 100,
     SHIFT: 250,
     SHUFFLE: 700,
-    SWAP: 250,
+    SWAP: 300,
     // Special animations
     STRIPED: 50,
   },
   WAITS: {
     SUGGESTION: 10000,
+    THINK_MINIMUM: 500,
+    THINK_MAXIMUM: 1000,
   },
 };
 
