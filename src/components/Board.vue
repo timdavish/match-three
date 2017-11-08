@@ -1,19 +1,26 @@
 <template>
-  <div :class="[`board-${rows}-${cols}`, `border-${status}`]">
-    <div class="grid-container">
-      <div class="grid-position"
-        v-for="position in positions" :key="position.id">
+  <div class="board-container">
+    <button class="ai-button"
+      @click="aiStatusChange">
+      {{ ai ? 'Disable' : 'Enable' }} AI
+    </button>
+
+    <div :class="[`board-${rows}-${cols}`, `border-${status}`]">
+      <div class="grid-container">
+        <div class="grid-position"
+          v-for="position in positions" :key="position.id">
+        </div>
       </div>
+      <transition-group name="tile" tag="div" class="tile-container">
+        <tile
+          v-for="tile in tiles" :key="tile.id"
+          :tile="tile"
+          :selection="selection"
+          :suggestion="suggestion"
+          @touch="tileTouch">
+        </tile>
+      </transition-group>
     </div>
-    <transition-group name="tile" tag="div" class="tile-container">
-      <tile
-        v-for="tile in tiles" :key="tile.id"
-        :tile="tile"
-        :selection="selection"
-        :suggestion="suggestion"
-        @touch="tileTouch">
-      </tile>
-    </transition-group>
   </div>
 </template>
 
@@ -36,6 +43,7 @@ export default {
   },
   data() {
     return {
+      ai: false,
       status: STATUS.BUSY,
       tiles: null,
       matches: null,
@@ -106,8 +114,16 @@ export default {
         .then(() => this.ensureMove())
         // Then set status to idle
         .then(() => this.setGameStatus(STATUS.IDLE))
-        // Then give a move suggestion
-        .then(() => this.giveSuggestion())
+        // Then check if ai is active
+        .then(() => {
+          if (this.ai) {
+            // Make an ai move
+            return this.aiMove();
+          } else {
+            // Start giving a move suggestion
+            return this.giveSuggestion();
+          }
+        })
         // Catch a 'game over' scenario where no moves are possible
         .catch((error) => console.log(error));
     },
@@ -153,6 +169,35 @@ export default {
       });
     },
 
+    // Change the ai status
+    aiStatusChange() {
+      this.ai = !this.ai;
+
+      if (this.ai && this.status === STATUS.IDLE) {
+        // AI was enabled while the board was idle
+        this.aiMove();
+      }
+    },
+
+    // Makes an ai move
+    aiMove() {
+      // Clear selection and suggestion
+      this.clearSelection();
+      this.clearSuggestion();
+
+      // 'Think' for a random amount of time
+      const thinkTime = random(TIMES.WAITS.THINK_MINIMUM, TIMES.WAITS.THINK_MAXIMUM);
+
+      setTimeout(() => {
+        const { row1, col1, row2, col2 } = this.moves[0];
+
+        this.attemptSwap(row1, col1, row2, col2);
+      }, thinkTime);
+
+      // Return promise for chaining
+      return Promise.resolve();
+    },
+
     // Clears the tile selection
     clearSelection() {
       this.selection = { selected: false, row: null, col: null, neighbors: [] };
@@ -162,6 +207,7 @@ export default {
     giveSuggestion() {
       this.suggestionTimer = setTimeout(() => {
         const { row1, col1, row2, col2 } = this.moves[0];
+        
         this.suggestion = { suggested: true, row1, col1, row2, col2 };
       }, TIMES.WAITS.SUGGESTION);
 
@@ -218,9 +264,9 @@ export default {
       for (let row = 0; row < this.rows; row += 1) {
         for (let col = 0; col < this.cols - 1; col += 1) {
           // Swap, find matches, swap back
-          this.swapTiles(row, col, row, col + 1);
+          this.swapTiles(row, col, row, col + 1, true);
           this.findMatches();
-          this.swapTiles(row, col, row, col + 1);
+          this.swapTiles(row, col, row, col + 1, true);
           // Check if the swap made a match
           if (this.matches.length > 0) {
             // Found at least one valid move
@@ -234,9 +280,9 @@ export default {
       for (let col = 0; col < this.cols; col += 1) {
         for (let row = 0; row < this.rows - 1; row += 1) {
           // Swap, find matches, swap back
-          this.swapTiles(row, col, row + 1, col);
+          this.swapTiles(row, col, row + 1, col, true);
           this.findMatches();
-          this.swapTiles(row, col, row + 1, col);
+          this.swapTiles(row, col, row + 1, col, true);
           // Check if the swap made a match
           if (this.matches.length > 0) {
             // Found at least one valid move
@@ -532,24 +578,12 @@ export default {
             // Don't give another suggestion
             giveAnotherSuggestion = false;
 
-            // Swap the two tiles
-            this.swapTiles(row, col, newRow, newCol);
-
-            // Check if this is move that makes a match
-            if (this.validMove(row, col, newRow, newCol)) {
-              // Decrement moves and run the game loop
-              setTimeout(() => {
-                this.updateMoves();
-                this.gameLoop();
-              }, TIMES.ANIMATIONS.SWAP);
-            } else {
-              // Swap the two tiles back
-              setTimeout(() => this.swapTiles(row, col, newRow, newCol), TIMES.ANIMATIONS.SWAP);
-            }
-
+            // Attempt to swap the tiles
+            this.attemptSwap(row, col, newRow, newCol);
           } else {
             // Refresh our selected position
             const newNeighbors = this.getValidNeighbors(newRow, newCol);
+
             this.selection = { selected: true, row: newRow, col: newCol, neighbors: newNeighbors };
           }
         }
@@ -562,6 +596,36 @@ export default {
 
       // Return promise for chaining
       return Promise.resolve();
+    },
+
+    // Attempt a tile swap
+    attemptSwap(row1, col1, row2, col2) {
+      // Swap the two tiles
+      this.swapTiles(row1, col1, row2, col2)
+        // Check if this is a move that makes a match
+        .then(() => {
+          if (this.validMove(row1, col1, row2, col2)) {
+            // Decrement moves and run the game loop
+            this.updateMoves();
+            return this.gameLoop();
+          } else {
+            // Swap the two tiles back
+            return this.swapTiles(row1, col1, row2, col2);
+          }
+        });
+    },
+
+    swapTiles(row1, col1, row2, col2, instant = false) {
+      const tile1 = this.getTile(row1, col1);
+      const tile2 = this.getTile(row2, col2);
+
+      this.setTileAt(tile1, row2, col2);
+      this.setTileAt(tile2, row1, col1);
+
+      // Return promise for chaining
+      return Promise.resolve()
+        // Wait for animation
+        .then(waitInPromise(!instant ? TIMES.ANIMATIONS.SWAP : 0));
     },
 
     // Update the level's moves
@@ -583,14 +647,6 @@ export default {
 
     getRandomTileType() {
       return random(this.tileTypes.length - 1);
-    },
-
-    swapTiles(row1, col1, row2, col2) {
-      const tile1 = this.getTile(row1, col1);
-      const tile2 = this.getTile(row2, col2);
-
-      this.setTileAt(tile1, row2, col2);
-      this.setTileAt(tile2, row1, col1);
     },
 
     setTileAt(tile, row, col) {

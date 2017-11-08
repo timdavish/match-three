@@ -32,6 +32,8 @@ export const TIMES = {
   },
   WAITS: {
     SUGGESTION: 10000,
+    THINK_MINIMUM: 500,
+    THINK_MAXIMUM: 1000,
   },
 };
 

@@ -40,8 +40,8 @@ export function level() {
         TILETYPES.BLUE,
         TILETYPES.GREEN,
         TILETYPES.ORANGE,
-        // TILETYPES.PURPLE,
-        // TILETYPES.RED,
+        TILETYPES.PURPLE,
+        TILETYPES.RED,
         // TILETYPES.YELLOW,
       ],
 
