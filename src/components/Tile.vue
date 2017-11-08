@@ -1,6 +1,6 @@
 <template>
   <div :class="['tile', 'position_' + tile.row + '_' + tile.col, 'type_' + tile.type, { 'tile-new': tile.removed }]">
-    <div :class="['tile-inner', { 'tile-selected': isSelected, 'tile-neighbor': isNeighbor }]"
+    <div :class="['tile-inner', { 'tile-neighbor': isNeighbor, 'tile-selected': isSelected, 'tile-suggested': isSuggested }]"
       @click="$emit('touch', tile)">
       {{ tile.special }}
     </div>
@@ -15,22 +15,36 @@ export default {
       type: Object,
       required: true,
     },
-    selected: {
+    selection: {
+      type: Object,
+      required: true,
+    },
+    suggestion: {
       type: Object,
       required: true,
     },
   },
   computed: {
+    isNeighbor() {
+      return this.selection.neighbors
+        .some(n => n.row === this.tile.row && n.col === this.tile.col);
+    },
     isSelected() {
       return (
-        this.selected.selected &&
-        this.selected.row === this.tile.row &&
-        this.selected.col === this.tile.col
+        this.selection.selected &&
+        this.selection.row === this.tile.row &&
+        this.selection.col === this.tile.col
       );
     },
-    isNeighbor() {
-      return this.selected.neighbors
-        .some(n => n.row === this.tile.row && n.col === this.tile.col);
+    isSuggested() {
+      return (
+        this.suggestion.suggested && (
+          (this.suggestion.row1 === this.tile.row &&
+           this.suggestion.col1 === this.tile.col) ||
+          (this.suggestion.row2 === this.tile.row &&
+           this.suggestion.col2 === this.tile.col)
+        )
+      );
     },
   },
 };
