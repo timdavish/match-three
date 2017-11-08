@@ -173,9 +173,15 @@ export default {
     aiStatusChange() {
       this.ai = !this.ai;
 
-      if (this.ai && this.status === STATUS.IDLE) {
-        // AI was enabled while the board was idle
-        this.aiMove();
+      // We don't need to do anything if the board is busy
+      if (this.status === STATUS.IDLE) {
+        if (this.ai) {
+          // AI was enabled while the board was idle
+          this.aiMove();
+        } else {
+          // AI was disabled while the board was idle
+          this.giveSuggestion();
+        }
       }
     },
 
@@ -188,14 +194,25 @@ export default {
       // 'Think' for a random amount of time
       const thinkTime = random(TIMES.WAITS.THINK_MINIMUM, TIMES.WAITS.THINK_MAXIMUM);
 
-      setTimeout(() => {
-        const { row1, col1, row2, col2 } = this.moves[0];
+      // Helper function
+      const aiMoveFinish = () => {
+        // Make sure ai is still enabled, then attempt swap
+        if (this.ai) {
+          const { row1, col1, row2, col2 } = this.moves[0];
 
-        this.attemptSwap(row1, col1, row2, col2);
-      }, thinkTime);
+          return this.attemptSwap(row1, col1, row2, col2);
+        } else {
+          // Return promise for chaining
+          return Promise.resolve();
+        }
+      };
 
       // Return promise for chaining
-      return Promise.resolve();
+      return Promise.resolve()
+        // Wait for thinking
+        .then(waitInPromise(thinkTime))
+        // Then finish ai move
+        .then(aiMoveFinish);
     },
 
     // Clears the tile selection
@@ -207,7 +224,7 @@ export default {
     giveSuggestion() {
       this.suggestionTimer = setTimeout(() => {
         const { row1, col1, row2, col2 } = this.moves[0];
-        
+
         this.suggestion = { suggested: true, row1, col1, row2, col2 };
       }, TIMES.WAITS.SUGGESTION);
 
@@ -1007,7 +1024,7 @@ $transition-time: 300ms;
     }
 
     .border-BUSY {
-      border-color: $red;
+      // border-color: $red;
     }
   }
 }
