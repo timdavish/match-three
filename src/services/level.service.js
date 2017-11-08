@@ -1,6 +1,6 @@
 /* eslint-disable */
 
-import { generateUid } from '../util/util';
+import { generateUid } from '../shared/util';
 
 import { DIRECTIONS, TILETYPES } from '../shared/constants';
 
@@ -40,10 +40,13 @@ export function level() {
         TILETYPES.BLUE,
         TILETYPES.GREEN,
         TILETYPES.ORANGE,
-        TILETYPES.PURPLE,
-        TILETYPES.RED,
+        // TILETYPES.PURPLE,
+        // TILETYPES.RED,
         // TILETYPES.YELLOW,
       ],
+
+      // null is default
+      lineOptions: null,
     },
   };
 }

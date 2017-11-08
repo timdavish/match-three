@@ -9,7 +9,8 @@
       <tile
         v-for="tile in tiles" :key="tile.id"
         :tile="tile"
-        :selected="selectedTile"
+        :selection="selection"
+        :suggestion="suggestion"
         @touch="tileTouch">
       </tile>
     </transition-group>
@@ -20,8 +21,9 @@
 /* eslint-disable */
 
 import Tile from './Tile';
-import { ANIMATION_TIMES, DIRECTIONS, SPECIALS, VECTORS } from '../shared/constants';
-import { deepCopy, deepEqual, random, waitInPromise } from '../util/util';
+import { DIRECTIONS, SPECIALS, STATUS, TIMES, VECTORS } from '../shared/constants';
+import { getLines } from '../shared/lines';
+import { deepCopy, deepEqual, isBlank, random, waitInPromise } from '../shared/util';
 
 export default {
   name: 'Board',
@@ -34,11 +36,13 @@ export default {
   },
   data() {
     return {
-      status: 'BUSY',
+      status: STATUS.BUSY,
       tiles: null,
       matches: null,
       moves: null,
-      selectedTile: { selected: false, row: null, col: null, neighbors: [] },
+      selection: { selected: false, row: null, col: null, neighbors: [] },
+      suggestion: { suggested: false, row1: null, col1: null, row2: null, col2: null },
+      suggestionTimer: null,
     };
   },
   computed: {
@@ -95,15 +99,25 @@ export default {
     // The main game loop
     gameLoop() {
       // Return promise for chaining, set status to busy
-      return this.setGameStatus('BUSY')
+      return this.setGameStatus(STATUS.BUSY)
         // Then resolve any matches
         .then(() => this.resolveMatches())
         // Then ensure that there is an available move
         .then(() => this.ensureMove())
         // Then set status to idle
-        .then(() => this.setGameStatus('IDLE'))
+        .then(() => this.setGameStatus(STATUS.IDLE))
+        // Then give a move suggestion
+        .then(() => this.giveSuggestion())
         // Catch a 'game over' scenario where no moves are possible
         .catch((error) => console.log(error));
+    },
+
+    // Sets the game status
+    setGameStatus(status) {
+      this.status = status;
+
+      // Return promise for chaining
+      return Promise.resolve(status);
     },
 
     // Resolves matches
@@ -139,6 +153,28 @@ export default {
       });
     },
 
+    // Clears the tile selection
+    clearSelection() {
+      this.selection = { selected: false, row: null, col: null, neighbors: [] };
+    },
+
+    // Gives a move suggestion
+    giveSuggestion() {
+      this.suggestionTimer = setTimeout(() => {
+        const { row1, col1, row2, col2 } = this.moves[0];
+        this.suggestion = { suggested: true, row1, col1, row2, col2 };
+      }, TIMES.WAITS.SUGGESTION);
+
+      // Return promise for chaining
+      return Promise.resolve();
+    },
+
+    // Clears the move suggestion
+    clearSuggestion() {
+      clearTimeout(this.suggestionTimer);
+      this.suggestion = { suggested: false, row1: null, col1: null, row2: null, col2: null };
+    },
+
     // Finds all current available matches
     findMatches() {
       // Reset matches
@@ -161,10 +197,11 @@ export default {
       this.matches = matches.sort((a, b) => {
         // Ascending priority sort
         const priorityDiff = a.priority - b.priority;
+        // Descending length sort
+        const lengthDiff = b.positions.length - a.positions.length;
 
         return priorityDiff === 0
-          // Descending length sort
-          ? b.positions.length - a.positions.length
+          ? lengthDiff
           : priorityDiff;
       });
 
@@ -175,7 +212,7 @@ export default {
     // Finds all current available moves
     findMoves() {
       // Reset moves
-      const moves = [];
+      let moves = [];
 
       // Find horizontal moves
       for (let row = 0; row < this.rows; row += 1) {
@@ -184,11 +221,11 @@ export default {
           this.swapTiles(row, col, row, col + 1);
           this.findMatches();
           this.swapTiles(row, col, row, col + 1);
-
           // Check if the swap made a match
           if (this.matches.length > 0) {
-            // Found a valid move
-            moves.push({ row1: row, col1: col, row2: row, col2: col + 1 });
+            // Found at least one valid move
+            const priorities = this.matches.map(m => m.priority);
+            moves.push({ row1: row, col1: col, row2: row, col2: col + 1, priorities });
           }
         }
       }
@@ -200,14 +237,43 @@ export default {
           this.swapTiles(row, col, row + 1, col);
           this.findMatches();
           this.swapTiles(row, col, row + 1, col);
-
           // Check if the swap made a match
           if (this.matches.length > 0) {
-            // Found a valid move
-            moves.push({ row1: row, col1: col, row2: row + 1, col2: col });
+            // Found at least one valid move
+            const priorities = this.matches.map(m => m.priority);
+            moves.push({ row1: row, col1: col, row2: row + 1, col2: col, priorities });
           }
         }
       }
+
+      // Sort moves by priorities
+      moves = moves.sort((a, b) => {
+        const { priorities: prioritiesA } = a;
+        const { priorities: prioritiesB } = b;
+
+        const length = Math.max(prioritiesA.length, prioritiesB.length);
+
+        for (let i = 0; i < length; i += 1) {
+          let priA = prioritiesA[i];
+          let priB = prioritiesB[i];
+
+          if (isBlank(priA)) {
+            priA = Infinity;
+          }
+          if (isBlank(priB)) {
+            priB = Infinity;
+          }
+
+          const comparision = priA - priB;
+
+          if (comparision !== 0) {
+            return comparision;
+          }
+        }
+
+        // Priorities were equal
+        return 0;
+      });
 
       // Reset matches
       this.matches = [];
@@ -276,7 +342,7 @@ export default {
       // Return promise for chaining
       return Promise.resolve(removedMatches)
         // Wait for animation
-        .then(waitInPromise(ANIMATION_TIMES.REMOVE));
+        .then(waitInPromise(TIMES.ANIMATIONS.REMOVE));
     },
 
     // Update the level's total score
@@ -391,7 +457,7 @@ export default {
         // Return promise for chaining
         return Promise.resolve()
           // Wait for animation
-          .then(waitInPromise(ANIMATION_TIMES.SHIFT));
+          .then(waitInPromise(TIMES.ANIMATIONS.SHIFT));
       }
 
       // Recursive case
@@ -411,7 +477,7 @@ export default {
           });
 
           resolve(this.shiftTiles());
-        }, ANIMATION_TIMES.SHIFT);
+        }, TIMES.ANIMATIONS.SHIFT);
       });
     },
 
@@ -442,7 +508,7 @@ export default {
       // Return promise for chaining
       return Promise.resolve()
         // Wait for animation
-        .then(waitInPromise(ANIMATION_TIMES.SHUFFLE));
+        .then(waitInPromise(TIMES.ANIMATIONS.SHUFFLE));
     },
 
     // Handles a board touch
@@ -450,15 +516,21 @@ export default {
     tileTouch(tile) {
       // Only allow tile touches while game is idle
       if (this.status === 'IDLE') {
-        const { selected, row, col } = this.selectedTile;
+        const { selected, row, col } = this.selection;
         const { row: newRow, col: newCol } = tile;
+
+        // Clear selection and suggestion
+        this.clearSelection();
+        this.clearSuggestion();
+
+        let giveAnotherSuggestion = true;
 
         // Check if the position is selectable
         if (!selected || row !== newRow || col !== newCol) {
           // Check if the position is an edge neighbor
           if (this.validNeighbor(row, col, newRow, newCol)) {
-            // Remove board selection
-            this.selectedTile = { selected: false, row: null, col: null, neighbors: [] };
+            // Don't give another suggestion
+            giveAnotherSuggestion = false;
 
             // Swap the two tiles
             this.swapTiles(row, col, newRow, newCol);
@@ -469,21 +541,22 @@ export default {
               setTimeout(() => {
                 this.updateMoves();
                 this.gameLoop();
-              }, ANIMATION_TIMES.SWAP);
+              }, TIMES.ANIMATIONS.SWAP);
             } else {
               // Swap the two tiles back
-              setTimeout(() => this.swapTiles(row, col, newRow, newCol), ANIMATION_TIMES.SWAP);
+              setTimeout(() => this.swapTiles(row, col, newRow, newCol), TIMES.ANIMATIONS.SWAP);
             }
 
           } else {
             // Refresh our selected position
             const newNeighbors = this.getValidNeighbors(newRow, newCol);
-
-            this.selectedTile = { selected: true, row: newRow, col: newCol, neighbors: newNeighbors };
+            this.selection = { selected: true, row: newRow, col: newCol, neighbors: newNeighbors };
           }
-        } else {
-          // Remove board selection
-          this.selectedTile = { selected: false, row: null, col: null, neighbors: [] };
+        }
+
+        // See if we're supposed to give another suggestion
+        if (giveAnotherSuggestion) {
+          this.giveSuggestion();
         }
       }
 
@@ -499,13 +572,6 @@ export default {
     /**
      * Helper Functions
      */
-
-    setGameStatus(status) {
-      this.status = status;
-
-      // Return promise for chaining
-      return Promise.resolve(status);
-    },
 
     getTile(row, col) {
       return this.tiles.find((t) => t.row === row && t.col === col);
@@ -585,236 +651,7 @@ export default {
     },
 
     getValidLines(row, col) {
-      const lines = [
-        // Priority 1: Color Painters
-        // Color Painter (Horizontal, pointing UP with 1 extra UP)
-        {
-          priority: 1,
-          special: SPECIALS.PAINTER,
-          bonusPoints: 200,
-          positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }, { row: row - 1, col: col + 2 }, { row: row - 2, col: col + 2 }]
-        },
-        // Color Painter (Horizontal, pointing DOWN with 1 extra DOWN)
-        {
-          priority: 1,
-          special: SPECIALS.PAINTER,
-          bonusPoints: 200,
-          positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }, { row: row + 1, col: col + 2 }, { row: row + 2, col: col + 2 }]
-        },
-        // Color Painter (Vertical, pointing LEFT with 1 extra LEFT)
-        {
-          priority: 1,
-          special: SPECIALS.PAINTER,
-          bonusPoints: 200,
-          positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }, { row: row + 2, col: col - 1 }, { row: row + 2, col: col - 2 }]
-        },
-        // Color Painter (Vertical, pointing RIGHT with 1 extra RIGHT)
-        {
-          priority: 1,
-          special: SPECIALS.PAINTER,
-          bonusPoints: 200,
-          positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }, { row: row + 2, col: col + 1 }, { row: row + 2, col: col + 2 }]
-        },
-        // Color Painter (Horizontal, pointing UP)
-        {
-          priority: 1,
-          special: SPECIALS.PAINTER,
-          bonusPoints: 200,
-          positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }, { row: row - 1, col: col + 2 }]
-        },
-        // Color Painter (Horizontal, pointing DOWN)
-        {
-          priority: 1,
-          special: SPECIALS.PAINTER,
-          bonusPoints: 200,
-          positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }, { row: row + 1, col: col + 2 }]
-        },
-        // Color Painter (Vertical, pointing LEFT)
-        {
-          priority: 1,
-          special: SPECIALS.PAINTER,
-          bonusPoints: 200,
-          positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }, { row: row + 2, col: col - 1 }]
-        },
-        // Color Painter (Vertical, pointing RIGHT)
-        {
-          priority: 1,
-          special: SPECIALS.PAINTER,
-          bonusPoints: 200,
-          positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }, { row: row + 2, col: col + 1 }]
-        },
-
-        // Priority 2: Color Bombs
-        // Color Bomb (Horizontal)
-        {
-          priority: 2,
-          special: SPECIALS.BOMB,
-          bonusPoints: 150,
-          positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }, { row, col: col + 4 }]
-        },
-        // Color Bomb (Vertical)
-        {
-          priority: 2,
-          special: SPECIALS.BOMB,
-          bonusPoints: 150,
-          positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }, { row: row + 4, col }]
-        },
-
-        // Priority 3: Wrapped
-        // Wrapped Candy (Corner, pointing UP_LEFT)
-        {
-          priority: 3,
-          special: SPECIALS.WRAPPED,
-          bonusPoints: 125,
-          positions: [{ row, col }, { row: row - 1, col }, { row: row - 2, col }, { row, col: col - 1 }, { row, col: col - 2 }]
-        },
-        // Wrapped Candy (Corner, pointing UP_RIGHT)
-        {
-          priority: 3,
-          special: SPECIALS.WRAPPED,
-          bonusPoints: 125,
-          positions: [{ row, col }, { row: row - 1, col }, { row: row - 2, col }, { row, col: col + 1 }, { row, col: col + 2 }]
-        },
-        // Wrapped Candy (Corner, pointing DOWN_RIGHT)
-        {
-          priority: 3,
-          special: SPECIALS.WRAPPED,
-          bonusPoints: 125,
-          positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row, col: col + 1 }, { row, col: col + 2 }]
-        },
-        // Wrapped Candy (Corner, pointing DOWN_LEFT)
-        {
-          priority: 3,
-          special: SPECIALS.WRAPPED,
-          bonusPoints: 125,
-          positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row, col: col - 1 }, { row, col: col - 2 }]
-        },
-        // Wrapped Candy (Middle, pointing UP)
-        {
-          priority: 3,
-          special: SPECIALS.WRAPPED,
-          bonusPoints: 125,
-          positions: [{ row, col: col - 1 }, { row, col }, { row, col: col + 1 }, { row: row - 1, col }, { row: row - 2, col }]
-        },
-        // Wrapped Candy (Middle, pointing RIGHT)
-        {
-          priority: 3,
-          special: SPECIALS.WRAPPED,
-          bonusPoints: 125,
-          positions: [{ row: row - 1, col }, { row, col }, { row: row + 1, col }, { row, col: col + 1 }, { row, col: col + 2 }]
-        },
-        // Wrapped Candy (Middle, pointing DOWN)
-        {
-          priority: 3,
-          special: SPECIALS.WRAPPED,
-          bonusPoints: 125,
-          positions: [{ row, col: col - 1 }, { row, col }, { row, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col }]
-        },
-        // Wrapped Candy (Middle, pointing LEFT)
-        {
-          priority: 3,
-          special: SPECIALS.WRAPPED,
-          bonusPoints: 125,
-          positions: [{ row: row - 1, col }, { row, col }, { row: row + 1, col }, { row, col: col - 1 }, { row, col: col - 2 }]
-        },
-
-        // Priority 4
-        // Striped Candy (Horizontal)
-        {
-          priority: 4,
-          special: SPECIALS.STRIPED_V,
-          bonusPoints: 100,
-          positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }, { row, col: col + 3 }]
-        },
-        // Striped Candy (Vertical)
-        {
-          priority: 4,
-          special: SPECIALS.STRIPED_H,
-          bonusPoints: 100,
-          positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }, { row: row + 3, col }]
-        },
-
-        // Priority 5
-        // Fish (With 1 extra UP_LEFT)
-        {
-          priority: 5,
-          special: SPECIALS.FISH,
-          bonusPoints: 100,
-          positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row - 1, col }]
-        },
-        // Fish (With 1 extra UP_RIGHT)
-        {
-          priority: 5,
-          special: SPECIALS.FISH,
-          bonusPoints: 100,
-          positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row - 1, col: col + 1 }]
-        },
-        // Fish (With 1 extra RIGHT_UP)
-        {
-          priority: 5,
-          special: SPECIALS.FISH,
-          bonusPoints: 100,
-          positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row, col: col + 2 }]
-        },
-        // Fish (With 1 extra RIGHT_DOWN)
-        {
-          priority: 5,
-          special: SPECIALS.FISH,
-          bonusPoints: 100,
-          positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 1, col: col + 2 }]
-        },
-        // Fish (With 1 extra DOWN_RIGHT)
-        {
-          priority: 5,
-          special: SPECIALS.FISH,
-          bonusPoints: 100,
-          positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col: col + 1 }]
-        },
-        // Fish (With 1 extra DOWN_LEFT)
-        {
-          priority: 5,
-          special: SPECIALS.FISH,
-          bonusPoints: 100,
-          positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 2, col }]
-        },
-        // Fish (With 1 extra LEFT_DOWN)
-        {
-          priority: 5,
-          special: SPECIALS.FISH,
-          bonusPoints: 100,
-          positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row: row + 1, col: col - 1 }]
-        },
-        // Fish (With 1 extra LEFT_UP)
-        {
-          priority: 5,
-          special: SPECIALS.FISH,
-          bonusPoints: 100,
-          positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }, { row, col: col - 1 }]
-        },
-        // Fish (Normal)
-        {
-          priority: 5,
-          special: SPECIALS.FISH,
-          bonusPoints: 100,
-          positions: [{ row, col }, { row, col: col + 1 }, { row: row + 1, col: col + 1 }, { row: row + 1, col }]
-        },
-
-        // Priority 9
-        // Normal (Horizontal)
-        {
-          priority: 9,
-          special: SPECIALS.NONE,
-          bonusPoints: 0,
-          positions: [{ row, col }, { row, col: col + 1 }, { row, col: col + 2 }]
-        },
-        // Normal (Vertical)
-        {
-          priority: 9,
-          special: SPECIALS.NONE,
-          bonusPoints: 0,
-          positions: [{ row, col }, { row: row + 1, col }, { row: row + 2, col }]
-        },
-      ];
+      const lines = getLines(row, col);
 
       // Filter out lines that don't fit
       return lines.filter((line) => line.positions.every((p) => this.withinBoard(p.row, p.col)));
@@ -822,8 +659,7 @@ export default {
 
     getNextPositionFromFlow(position) {
       const { row, col, flowDirection } = position;
-      const { row: nextRow, col: nextCol } = this.getCoordinatesInDirection(
-        row, col, flowDirection);
+      const { row: nextRow, col: nextCol } = this.getCoordinatesInDirection(row, col, flowDirection);
 
       return this.getPosition(nextRow, nextCol);
     },
@@ -935,16 +771,21 @@ export default {
         { row1: row2, col1: col2, row2: row1, col2: col1 },
       ];
 
-      return this.moves.some((move) => permutations.some((p) => deepEqual(move, p)));
+      return this.moves.some((move) => {
+        // Pull only rows and cols from move to check against
+        const _move = { row1: move.row1, col1: move.col1, row2: move.row2, col2: move.col2 };
+        return permutations.some((p) => deepEqual(_move, p));
+      });
     },
 
     /**
-     * Checks if two positions are adjacent
+     * Checks if two positions are neighbors
      * @param {Number} row1 The row of the first position
      * @param {Number} col1 The column of the first position
      * @param {Number} row2 The row of the second position
      * @param {Number} col2 The column of the second position
-     * @return {Boolean} Whether the given positions are adjacent or not
+     * @param {Boolean} all Whether to check corner neighbors or not
+     * @return {Boolean} Whether the given positions are neighbors or not
      */
     validNeighbor(row1, col1, row2, col2, all = false) {
       return (
@@ -979,6 +820,7 @@ export default {
 <!-- Add "scoped" attribute to limit CSS to this component only -->
 <style lang="scss">
 @import "~style/functions";
+@import "~style/variables";
 
 // Static
 $board-width: 700px;  // The width of the board
@@ -988,14 +830,15 @@ $tile-padding: 4px; // Padding between tiles
 $tile-radius: 3px; // Border radius on tiles
 $tile-font: 'Open Sans', sans-serif;
 
-$colors: blue,
-         green,
-         orange,
-         purple,
-         red,
-         yellow;
+$colors: $blue,
+         $green,
+         $orange,
+         $purple,
+         $red,
+         $yellow;
 
-$remove-time: 125ms;
+$remove-time: 175ms;
+$suggest-time: 2000ms;
 $transition-time: 300ms;
 
 // Dynamic
@@ -1058,17 +901,22 @@ $transition-time: 300ms;
             @include border-radius($tile-radius);
           }
 
-          &.tile-new .tile-inner {
+          .tile-new {
             @include animation(pop $remove-time);
             opacity: 0;
           }
 
-          .tile-selected {
-            border: 2px solid yellow;
+          .tile-neighbor {
+            border: 2px solid $black;
           }
 
-          .tile-neighbor {
-            border: 2px solid black;
+          .tile-selected {
+            border: 2px solid $yellow;
+          }
+
+          .tile-suggested {
+            @include animation(suggest $suggest-time);
+            animation-iteration-count: infinite;
           }
 
           // Dynamically create .position_{row}_{col} classes to place tiles
@@ -1099,7 +947,7 @@ $transition-time: 300ms;
     }
 
     .border-BUSY {
-      border-color: red;
+      border-color: $red;
     }
   }
 }
@@ -1135,20 +983,42 @@ $transition-time: 300ms;
   }
 }
 
-// Declare transition
-.fade-move, .fade-enter-active, .fade-leave-active {
-  transition: all .5s cubic-bezier(.55, 0, .1, 1);
-}
-
-// Declare enter from and leave to state
-.fade-enter, .fade-leave-to {
-  opacity: 0;
-  transform: scaleY(0.01) translate(30px, 0);
-}
-
-// Ensure leaving items are taken out of layout flow so that moving
-// animations can be calculated correctly
-.fade-leave-active {
-  position: absolute;
+@include keyframes(suggest) {
+  0% {
+    box-shadow: 0 0 4px $gray-dark;
+  }
+  2.5% {
+    @include transform(translate(-2px, 0));
+  }
+  5% {
+    @include transform(translate(1px, 0));
+  }
+  7.5% {
+    @include transform(translate(5px, 0));
+  }
+  10% {
+    @include transform(translate(0, 0));
+  }
+  12.5% {
+    @include transform(translate(-6px, 0));
+  }
+  15% {
+    @include transform(translate(1px, 0))
+  }
+  25% {
+    @include transform(rotate(2deg));
+  }
+  40% {
+    @include transform(rotate(-1deg));
+  }
+  50% {
+    box-shadow: 0 0 11px $gray-dark;
+  }
+  60% {
+    @include transform(rotate(0));
+  }
+  100% {
+    box-shadow: 0 0 4px $gray-dark;
+  }
 }
 </style>
