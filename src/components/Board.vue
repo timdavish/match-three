@@ -1,5 +1,5 @@
 <template>
-  <div :class="['board_' + rows + '_' + cols, 'border_' + status]">
+  <div :class="[`board-${rows}-${cols}`, `border-${status}`]">
     <div class="grid-container">
       <div class="grid-position"
         v-for="position in positions" :key="position.id">
@@ -515,7 +515,7 @@ export default {
     // Animation timing: SWAP
     tileTouch(tile) {
       // Only allow tile touches while game is idle
-      if (this.status === 'IDLE') {
+      if (this.status === STATUS.IDLE) {
         const { selected, row, col } = this.selection;
         const { row: newRow, col: newCol } = tile;
 
@@ -823,6 +823,8 @@ export default {
 @import "~style/variables";
 
 // Static
+$size-min: 2;
+$size-max: 9;
 $board-width: 700px;  // The width of the board
 $board-height: 700px; // The height of the board
 
@@ -837,20 +839,20 @@ $colors: $blue,
          $red,
          $yellow;
 
-$remove-time: 175ms;
+$remove-time: 125ms;
 $suggest-time: 2000ms;
 $transition-time: 300ms;
 
 // Dynamic
-@for $rows from 2 through 9 {
-  @for $cols from 2 through 9 {
+@for $rows from $size-min through $size-max {
+  @for $cols from $size-min through $size-max {
     $board-rows-count: $rows; // The number of rows in the board
     $board-cols-count: $cols; // The number of cols in the board
 
     $tile-width: ($board-width - $tile-padding * ($board-cols-count + 1)) / $board-cols-count;
     $tile-height: ($board-height - $tile-padding * ($board-rows-count + 1)) / $board-rows-count;
 
-    &.board_#{$rows}_#{$cols} {
+    &.board-#{$rows}-#{$cols} {
       // position: absolute;
       position: relative;
       width: $board-width;
@@ -870,6 +872,7 @@ $transition-time: 300ms;
           margin-left: $tile-padding;
           float: left;
           background: rgba(238, 228, 218, 0.5);
+          box-shadow: 0 0 1px $gray-light;
           @include border-radius($tile-radius);
         }
       }
@@ -896,6 +899,7 @@ $transition-time: 300ms;
             height: $inner-height;
             margin: ($tile-height - $inner-height) / 2 auto;
             box-sizing: border-box;
+            box-shadow: 0 0 1px $gray-dark;
             line-height: $inner-height;
             text-align: center;
             @include border-radius($tile-radius);
@@ -907,11 +911,11 @@ $transition-time: 300ms;
           }
 
           .tile-neighbor {
-            border: 2px solid $black;
+            border: 3px solid $gray-light;
           }
 
           .tile-selected {
-            border: 2px solid $yellow;
+            border: 3px solid $gray;
           }
 
           .tile-suggested {
@@ -919,7 +923,7 @@ $transition-time: 300ms;
             animation-iteration-count: infinite;
           }
 
-          // Dynamically create .position_{row}_{col} classes to place tiles
+          // Dynamically create .position-{row}-{col} classes to place tiles
           $row-start: 0 - $board-rows-count;
           $row-end: $board-rows-count * 2;
           $col-start: 0 - $board-cols-count;
@@ -930,7 +934,7 @@ $transition-time: 300ms;
                 $newX: $tile-width * $col + ($tile-padding * ($col + 1));
                 $newY: $tile-height * $row + ($tile-padding * ($row + 1));
 
-                &.position_#{$row}_#{$col} {
+                &.position-#{$row}-#{$col} {
                   @include transform(translate($newX, $newY));
                 }
               }
@@ -938,7 +942,7 @@ $transition-time: 300ms;
           }
 
           @for $i from 0 to length($colors) {
-            &.type_#{$i} .tile-inner {
+            &.type-#{$i} .tile-inner {
               background: nth($colors, $i + 1);
             }
           }
