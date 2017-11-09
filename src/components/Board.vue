@@ -28,7 +28,7 @@
 /* eslint-disable */
 
 import Tile from './Tile';
-import { DIRECTIONS, SPECIALS, STATUS, TIMES, VECTORS } from '../shared/constants';
+import { DIRECTIONS, POINTS, SPECIALS, STATUS, TIMES, VECTORS } from '../shared/constants';
 import { getLines } from '../shared/lines';
 import { deepCopy, deepEqual, isBlank, random, waitInPromise } from '../shared/util';
 
@@ -106,13 +106,13 @@ export default {
 
     // The main game loop
     gameLoop() {
-      // Return promise for chaining, set status to busy
+      // Return promise for chaining, set game status to busy
       return this.setGameStatus(STATUS.BUSY)
         // Then resolve any matches
         .then(() => this.resolveMatches())
         // Then ensure that there is an available move
         .then(() => this.ensureMove())
-        // Then set status to idle
+        // Then set game status to idle
         .then(() => this.setGameStatus(STATUS.IDLE))
         // Then check if ai is active
         .then(() => {
@@ -146,12 +146,18 @@ export default {
         return Promise.resolve();
       }
 
-      // Return promise for chaining
-      return this.removeMatches()
-        .then((_) => this.updateScore(_))
-        .then((_) => this.setSpecialTiles(_))
+      // Return promise for chaining, handle matches
+      return this.handleMatches()
+        // Then handle removed specials
+        .then((data) => this.handleSpecials(data))
+        // Then add points to the level score
+        .then((data) => this.addScore(data))
+        // Then set any newly created specials
+        .then((data) => this.setSpecialTiles(data))
+        // Then handle tile shifting
         .then(() => this.setTileShifts())
         .then(() => this.shiftTiles())
+        // Then rerun the entire process until no matches are created
         .then(() => this.resolveMatches());
     },
 
@@ -348,84 +354,94 @@ export default {
 
     // Removes all possible matches
     // Animation timing: REMOVE
-    removeMatches() {
+    handleMatches() {
       const tiles = this.tiles;
 
-      // Keep track of removed matches to pass down the chain
+      // Keep track of points
+      let points = 0;
+      // Keep track of removed matches
       let removedMatches = [];
-      // Keep track of collatoral tiles to remove after immediate matches are removed
-      let collatoralTiles = [];
+      // Keep track of removed specials to pass down the chain
+      let removedSpecials = [];
 
       for (let match of this.matches) {
         if (this.validMatch(match)) {
           match.positions.forEach((p) => {
             const { row, col } = p;
             const tile = this.getTile(row, col);
-
-            // Handle special tiles
-            switch (tile.special) {
-              case SPECIALS.PAINTER: {
-                console.log('painter go boom');
-                break;
-              }
-              case SPECIALS.BOMB: {
-                console.log('bomb go boom');
-                break;
-              }
-              case SPECIALS.WRAPPED: {
-                console.log('wrapped go boom');
-                break;
-              }
-              case SPECIALS.STRIPED_H: {
-                console.log('horizontal facing striped go boom');
-                break;
-              }
-              case SPECIALS.STRIPED_V: {
-                console.log('vertical facing striped go boom');
-                break;
-              }
-              case SPECIALS.FISH: {
-                console.log('fish go boom');
-                break;
-              }
-              default: break;
-            }
+            const special = tile.special;
 
             // Remove the tile normally
             this.removeTile(tile);
+
+            // Add points from tile
+            points += POINTS.TILE;
+
+            // Keep track of specials
+            if (special !== SPECIALS.NONE) {
+              removedSpecials.push({ row, col, special })
+            }
           });
 
+          // Add bonus points from matches
+          points += match.bonusPoints;
           removedMatches.push(match);
         }
       }
 
-      // Remove collatoral tiles
-      collatoralTiles.forEach((t) => this.removeTile(t));
-
       // Return promise for chaining
-      return Promise.resolve(removedMatches)
+      return Promise.resolve({ points, removedMatches, removedSpecials })
         // Wait for animation
         .then(waitInPromise(TIMES.ANIMATIONS.REMOVE));
     },
 
-    // Update the level's total score
-    updateScore(removedMatches) {
-      let points = 0;
+    // Handle special tile removals
+    handleSpecials({ points, removedMatches, removedSpecials }) {
+      removedSpecials.forEach((tile) => {
+        switch (tile.special) {
+          case SPECIALS.PAINTER: {
+            console.log('painter go boom');
+            break;
+          }
+          case SPECIALS.BOMB: {
+            console.log('bomb go boom');
+            break;
+          }
+          case SPECIALS.WRAPPED: {
+            console.log('wrapped go boom');
+            break;
+          }
+          case SPECIALS.STRIPED_H: {
+            console.log('horizontal facing striped go boom');
+            break;
+          }
+          case SPECIALS.STRIPED_V: {
+            console.log('vertical facing striped go boom');
+            break;
+          }
+          case SPECIALS.FISH: {
+            console.log('fish go boom');
+            break;
+          }
+          default: break;
+        }
+      });
 
-      // Set points for scoring
-      for (let match of removedMatches) {
-        points += match.positions.length * 50;
-        points += match.bonusPoints;
-      }
-
-      this.$emit('updateScore', points);
 
       // Return promise for chaining
-      return Promise.resolve(removedMatches);
+      return Promise.resolve({ points, removedMatches });
+    },
+
+    // Add points to the level score
+    addScore({ points, removedMatches }) {
+      this.$emit('addScore', points);
+
+      // Return promise for chaining
+      return Promise.resolve({ removedMatches });
     },
 
     // Set any special tiles that were created
-    setSpecialTiles(removedMatches) {
+    setSpecialTiles({ removedMatches }) {
       for (let match of removedMatches) {
         const special = match.special;
 
@@ -610,23 +626,23 @@ export default {
           this.giveSuggestion();
         }
       }
-
-      // Return promise for chaining
-      return Promise.resolve();
     },
 
     // Attempt a tile swap
     attemptSwap(row1, col1, row2, col2) {
-      // Swap the two tiles
-      this.swapTiles(row1, col1, row2, col2)
+      // Set game status to busy
+      this.setGameStatus(STATUS.BUSY)
+        // Swap the two tiles
+        .then(() => this.swapTiles(row1, col1, row2, col2))
         // Check if this is a move that makes a match
         .then(() => {
           if (this.validMove(row1, col1, row2, col2)) {
             // Decrement moves and run the game loop
-            this.updateMoves();
+            this.addMoves();
             return this.gameLoop();
           } else {
-            // Swap the two tiles back
+            // Set game status to idle and swap the two tiles back
+            this.setGameStatus(STATUS.IDLE);
             return this.swapTiles(row1, col1, row2, col2);
           }
         });
@@ -645,9 +661,9 @@ export default {
         .then(waitInPromise(!instant ? TIMES.ANIMATIONS.SWAP : 0));
     },
 
-    // Update the level's moves
-    updateMoves(moves = -1) {
-      this.$emit('updateMoves', moves);
+    // Add to the level moves
+    addMoves(moves = -1) {
+      this.$emit('addMoves', moves);
     },
 
     /**

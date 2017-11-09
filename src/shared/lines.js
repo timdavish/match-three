@@ -1,5 +1,5 @@
 /* eslint-disable no-use-before-define */
-import { SPECIALS } from './constants';
+import { POINTS, SPECIALS } from './constants';
 
 export const defaultLineOptions = {
   painters: true,
@@ -30,7 +30,7 @@ export const getPainterLines = (row, col) => [
   {
     priority: 1,
     special: SPECIALS.PAINTER,
-    bonusPoints: 200,
+    bonusPoints: POINTS.PAINTER,
     positions: [
       { row, col },
       { row, col: col + 1 },
@@ -45,7 +45,7 @@ export const getPainterLines = (row, col) => [
   {
     priority: 1,
     special: SPECIALS.PAINTER,
-    bonusPoints: 200,
+    bonusPoints: POINTS.PAINTER,
     positions: [
       { row, col },
       { row, col: col + 1 },
@@ -60,7 +60,7 @@ export const getPainterLines = (row, col) => [
   {
     priority: 1,
     special: SPECIALS.PAINTER,
-    bonusPoints: 200,
+    bonusPoints: POINTS.PAINTER,
     positions: [
       { row, col },
       { row: row + 1, col },
@@ -75,7 +75,7 @@ export const getPainterLines = (row, col) => [
   {
     priority: 1,
     special: SPECIALS.PAINTER,
-    bonusPoints: 200,
+    bonusPoints: POINTS.PAINTER,
     positions: [
       { row, col },
       { row: row + 1, col },
@@ -90,7 +90,7 @@ export const getPainterLines = (row, col) => [
   {
     priority: 1,
     special: SPECIALS.PAINTER,
-    bonusPoints: 200,
+    bonusPoints: POINTS.PAINTER,
     positions: [
       { row, col },
       { row, col: col + 1 },
@@ -104,7 +104,7 @@ export const getPainterLines = (row, col) => [
   {
     priority: 1,
     special: SPECIALS.PAINTER,
-    bonusPoints: 200,
+    bonusPoints: POINTS.PAINTER,
     positions: [
       { row, col },
       { row, col: col + 1 },
@@ -118,7 +118,7 @@ export const getPainterLines = (row, col) => [
   {
     priority: 1,
     special: SPECIALS.PAINTER,
-    bonusPoints: 200,
+    bonusPoints: POINTS.PAINTER,
     positions: [
       { row, col },
       { row: row + 1, col },
@@ -132,7 +132,7 @@ export const getPainterLines = (row, col) => [
   {
     priority: 1,
     special: SPECIALS.PAINTER,
-    bonusPoints: 200,
+    bonusPoints: POINTS.PAINTER,
     positions: [
       { row, col },
       { row: row + 1, col },
@@ -150,7 +150,7 @@ export const getBombLines = (row, col) => [
   {
     priority: 2,
     special: SPECIALS.BOMB,
-    bonusPoints: 150,
+    bonusPoints: POINTS.BOMB,
     positions: [
       { row, col },
       { row, col: col + 1 },
@@ -163,7 +163,7 @@ export const getBombLines = (row, col) => [
   {
     priority: 2,
     special: SPECIALS.BOMB,
-    bonusPoints: 150,
+    bonusPoints: POINTS.BOMB,
     positions: [
       { row, col },
       { row: row + 1, col },
@@ -180,7 +180,7 @@ export const getWrappedLines = (row, col) => [
   {
     priority: 3,
     special: SPECIALS.WRAPPED,
-    bonusPoints: 125,
+    bonusPoints: POINTS.WRAPPED,
     positions: [
       { row, col },
       { row: row - 1, col },
@@ -193,7 +193,7 @@ export const getWrappedLines = (row, col) => [
   {
     priority: 3,
     special: SPECIALS.WRAPPED,
-    bonusPoints: 125,
+    bonusPoints: POINTS.WRAPPED,
     positions: [
       { row, col },
       { row: row - 1, col },
@@ -206,7 +206,7 @@ export const getWrappedLines = (row, col) => [
   {
     priority: 3,
     special: SPECIALS.WRAPPED,
-    bonusPoints: 125,
+    bonusPoints: POINTS.WRAPPED,
     positions: [
       { row, col },
       { row: row + 1, col },
@@ -219,7 +219,7 @@ export const getWrappedLines = (row, col) => [
   {
     priority: 3,
     special: SPECIALS.WRAPPED,
-    bonusPoints: 125,
+    bonusPoints: POINTS.WRAPPED,
     positions: [
       { row, col },
       { row: row + 1, col },
@@ -232,7 +232,7 @@ export const getWrappedLines = (row, col) => [
   {
     priority: 3,
     special: SPECIALS.WRAPPED,
-    bonusPoints: 125,
+    bonusPoints: POINTS.WRAPPED,
     positions: [
       { row, col: col - 1 },
       { row, col },
@@ -245,7 +245,7 @@ export const getWrappedLines = (row, col) => [
   {
     priority: 3,
     special: SPECIALS.WRAPPED,
-    bonusPoints: 125,
+    bonusPoints: POINTS.WRAPPED,
     positions: [
       { row: row - 1, col },
       { row, col },
@@ -258,7 +258,7 @@ export const getWrappedLines = (row, col) => [
   {
     priority: 3,
     special: SPECIALS.WRAPPED,
-    bonusPoints: 125,
+    bonusPoints: POINTS.WRAPPED,
     positions: [
       { row, col: col - 1 },
       { row, col },
@@ -271,7 +271,7 @@ export const getWrappedLines = (row, col) => [
   {
     priority: 3,
     special: SPECIALS.WRAPPED,
-    bonusPoints: 125,
+    bonusPoints: POINTS.WRAPPED,
     positions: [
       { row: row - 1, col },
       { row, col },
@@ -288,7 +288,7 @@ export const getStripedLines = (row, col) => [
   {
     priority: 4,
     special: SPECIALS.STRIPED_V,
-    bonusPoints: 100,
+    bonusPoints: POINTS.STRIPED,
     positions: [
       { row, col },
       { row, col: col + 1 },
@@ -300,7 +300,7 @@ export const getStripedLines = (row, col) => [
   {
     priority: 4,
     special: SPECIALS.STRIPED_H,
-    bonusPoints: 100,
+    bonusPoints: POINTS.STRIPED,
     positions: [
       { row, col },
       { row: row + 1, col },
@@ -316,7 +316,7 @@ export const getFishLines = (row, col) => [
   {
     priority: 5,
     special: SPECIALS.FISH,
-    bonusPoints: 100,
+    bonusPoints: POINTS.FISH,
     positions: [
       { row, col },
       { row, col: col + 1 },
@@ -329,7 +329,7 @@ export const getFishLines = (row, col) => [
   {
     priority: 5,
     special: SPECIALS.FISH,
-    bonusPoints: 100,
+    bonusPoints: POINTS.FISH,
     positions: [
       { row, col },
       { row, col: col + 1 },
@@ -342,7 +342,7 @@ export const getFishLines = (row, col) => [
   {
     priority: 5,
     special: SPECIALS.FISH,
-    bonusPoints: 100,
+    bonusPoints: POINTS.FISH,
     positions: [
       { row, col },
       { row, col: col + 1 },
@@ -355,7 +355,7 @@ export const getFishLines = (row, col) => [
   {
     priority: 5,
     special: SPECIALS.FISH,
-    bonusPoints: 100,
+    bonusPoints: POINTS.FISH,
     positions: [
       { row, col },
       { row, col: col + 1 },
@@ -368,7 +368,7 @@ export const getFishLines = (row, col) => [
   {
     priority: 5,
     special: SPECIALS.FISH,
-    bonusPoints: 100,
+    bonusPoints: POINTS.FISH,
     positions: [
       { row, col },
       { row, col: col + 1 },
@@ -381,7 +381,7 @@ export const getFishLines = (row, col) => [
   {
     priority: 5,
     special: SPECIALS.FISH,
-    bonusPoints: 100,
+    bonusPoints: POINTS.FISH,
     positions: [
       { row, col },
       { row, col: col + 1 },
@@ -394,7 +394,7 @@ export const getFishLines = (row, col) => [
   {
     priority: 5,
     special: SPECIALS.FISH,
-    bonusPoints: 100,
+    bonusPoints: POINTS.FISH,
     positions: [
       { row, col },
       { row, col: col + 1 },
@@ -407,7 +407,7 @@ export const getFishLines = (row, col) => [
   {
     priority: 5,
     special: SPECIALS.FISH,
-    bonusPoints: 100,
+    bonusPoints: POINTS.FISH,
     positions: [
       { row, col },
       { row, col: col + 1 },
@@ -420,7 +420,7 @@ export const getFishLines = (row, col) => [
   {
     priority: 5,
     special: SPECIALS.FISH,
-    bonusPoints: 100,
+    bonusPoints: POINTS.FISH,
     positions: [
       { row, col },
       { row, col: col + 1 },
@@ -436,7 +436,7 @@ export const getNormalLines = (row, col) => [
   {
     priority: 9,
     special: SPECIALS.NONE,
-    bonusPoints: 0,
+    bonusPoints: POINTS.NONE,
     positions: [
       { row, col },
       { row, col: col + 1 },
@@ -447,7 +447,7 @@ export const getNormalLines = (row, col) => [
   {
     priority: 9,
     special: SPECIALS.NONE,
-    bonusPoints: 0,
+    bonusPoints: POINTS.NONE,
     positions: [
       { row, col },
       { row: row + 1, col },

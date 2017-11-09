@@ -11,6 +11,16 @@ export const DIRECTIONS = {
   NONE: 'NONE',
 };
 
+export const POINTS = {
+  PAINTER: 200,
+  BOMB: 150,
+  WRAPPED: 125,
+  STRIPED: 100,
+  FISH: 100,
+  TILE: 50,
+  NONE: 0,
+};
+
 export const TILETYPES = {
   BLUE: 'BLUE',
   GREEN: 'GREEN',

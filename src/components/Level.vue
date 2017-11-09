@@ -6,8 +6,8 @@
 
     <board
       :boardData="boardData"
-      @updateMoves="updateMoves"
-      @updateScore="updateScore">
+      @addMoves="addMoves"
+      @addScore="addScore">
     </board>
   </div>
 </template>
@@ -33,9 +33,9 @@ export default {
   },
   methods: {
     ...mapActions({
+      addMoves: 'addMoves',
+      addScore: 'addScore',
       newGame: 'newGame',
-      updateMoves: 'updateMoves',
-      updateScore: 'updateScore',
     }),
   },
   created() {
