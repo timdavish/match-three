@@ -28,7 +28,7 @@
 /* eslint-disable */
 
 import Tile from './Tile';
-import { DIRECTIONS, POINTS, SPECIALS, STATUS, TIMES, VECTORS } from '../shared/constants';
+import { BLOCKERS, DIRECTIONS, POINTS, SPECIALS, STATUS, TIMES, VECTORS } from '../shared/constants';
 import { getLines } from '../shared/lines';
 import { deepCopy, deepEqual, isBlank, random, waitInPromise } from '../shared/util';
 
@@ -65,7 +65,7 @@ export default {
     newGame() {
       const { tiles: defaultTiles } = this.boardData;
       const tileCount = defaultTiles.length;
-      const positionCount = this.positions.filter((p) => p.isActive).length;
+      const positionCount = this.positions.filter((p) => p.active).length;
 
       // Set the board's tiles
       this.tiles = tileCount === positionCount
@@ -89,15 +89,20 @@ export default {
 
       for (let row = 0; row < rows; row += 1) {
         for (let col = 0; col < cols; col += 1) {
-          tiles.push({
-            id: this.coordinatesToIndex({ row, col }),
-            row,
-            col,
-            type: this.getRandomTileType(),
-            special: SPECIALS.NONE,
-            shifts: [],
-            removed: false
-          });
+          const position = this.getPosition(row, col);
+
+          // Make sure the position can contain a tile
+          if (this.isActivePosition(position)) {
+            tiles.push({
+              id: this.coordinatesToIndex({ row, col }),
+              row,
+              col,
+              type: this.getRandomTileType(),
+              special: SPECIALS.NONE,
+              shifts: [],
+              removed: false
+            });
+          }
         }
       }
 
@@ -150,8 +155,6 @@ export default {
       return this.handleMatches()
         // Then handle removed specials
         .then((data) => this.handleSpecials(data))
-        // Then add points to the level score
-        .then((data) => this.addScore(data))
         // Then set any newly created specials
         .then((data) => this.setSpecialTiles(data))
         // Then handle tile shifting
@@ -251,9 +254,9 @@ export default {
 
       // Calculate best match for each board position
       this.positions.forEach((p) => {
-        const { row, col, isActive } = p;
+        const { row, col, active } = p;
 
-        if (isActive) {
+        if (active) {
           const match = this.calculateBestMatch(row, col);
           if (match !== null) {
             matches.push(match);
@@ -286,15 +289,20 @@ export default {
       // Find horizontal moves
       for (let row = 0; row < this.rows; row += 1) {
         for (let col = 0; col < this.cols - 1; col += 1) {
-          // Swap, find matches, swap back
-          this.swapTiles(row, col, row, col + 1, true);
-          this.findMatches();
-          this.swapTiles(row, col, row, col + 1, true);
-          // Check if the swap made a match
-          if (this.matches.length > 0) {
-            // Found at least one valid move
-            const priorities = this.matches.map(m => m.priority);
-            moves.push({ row1: row, col1: col, row2: row, col2: col + 1, priorities });
+          const p1 = this.getPosition(row, col);
+          const p2 = this.getPosition(row, col + 1);
+
+          if (this.isActivePosition(p1) && this.isActivePosition(p2)) {
+            // Swap, find matches, swap back
+            this.swapTiles(row, col, row, col + 1, true);
+            this.findMatches();
+            this.swapTiles(row, col, row, col + 1, true);
+            // Check if the swap made a match
+            if (this.matches.length > 0) {
+              // Found at least one valid move
+              const priorities = this.matches.map(m => m.priority);
+              moves.push({ row1: row, col1: col, row2: row, col2: col + 1, priorities });
+            }
           }
         }
       }
@@ -302,15 +310,20 @@ export default {
       // Find vertical moves
       for (let col = 0; col < this.cols; col += 1) {
         for (let row = 0; row < this.rows - 1; row += 1) {
-          // Swap, find matches, swap back
-          this.swapTiles(row, col, row + 1, col, true);
-          this.findMatches();
-          this.swapTiles(row, col, row + 1, col, true);
-          // Check if the swap made a match
-          if (this.matches.length > 0) {
-            // Found at least one valid move
-            const priorities = this.matches.map(m => m.priority);
-            moves.push({ row1: row, col1: col, row2: row + 1, col2: col, priorities });
+          const p1 = this.getPosition(row, col);
+          const p2 = this.getPosition(row + 1, col);
+
+          if (this.isActivePosition(p1) && this.isActivePosition(p2)) {
+            // Swap, find matches, swap back
+            this.swapTiles(row, col, row + 1, col, true);
+            this.findMatches();
+            this.swapTiles(row, col, row + 1, col, true);
+            // Check if the swap made a match
+            if (this.matches.length > 0) {
+              // Found at least one valid move
+              const priorities = this.matches.map(m => m.priority);
+              moves.push({ row1: row, col1: col, row2: row + 1, col2: col, priorities });
+            }
           }
         }
       }
@@ -352,7 +365,7 @@ export default {
       return Promise.resolve();
     },
 
-    // Removes all possible matches
+    // Handle match removals
     // Animation timing: REMOVE
     handleMatches() {
       const tiles = this.tiles;
@@ -371,16 +384,16 @@ export default {
             const tile = this.getTile(row, col);
             const special = tile.special;
 
-            // Remove the tile normally
-            this.removeTile(tile);
-
             // Add points from tile
             points += POINTS.TILE;
 
             // Keep track of specials
             if (special !== SPECIALS.NONE) {
-              removedSpecials.push({ row, col, special })
+              removedSpecials.push(deepCopy(tile));
             }
+
+            // Remove the tile normally
+            this.removeTile(tile);
           });
 
           // Add bonus points from matches
@@ -390,58 +403,115 @@ export default {
       }
 
       // Return promise for chaining
-      return Promise.resolve({ points, removedMatches, removedSpecials })
+      return Promise.resolve({ removedMatches, removedSpecials })
         // Wait for animation
-        .then(waitInPromise(TIMES.ANIMATIONS.REMOVE));
+        .then(waitInPromise(TIMES.ANIMATIONS.REMOVE))
+        // Add score
+        .then(this.addScore(points));
     },
 
     // Handle special tile removals
-    handleSpecials({ points, removedMatches, removedSpecials }) {
-      removedSpecials.forEach((tile) => {
-        switch (tile.special) {
-          case SPECIALS.PAINTER: {
-            console.log('painter go boom');
-            break;
+    handleSpecials({ removedMatches, removedSpecials }) {
+      // Promise.all makes sure we wait for all the animations to finish
+      return Promise.all([
+        Promise.resolve(removedMatches),
+        ...removedSpecials.map(tile => {
+          const { row, col, special } = tile;
+
+          switch (special) {
+            // case SPECIALS.PAINTER: {
+            //   console.log('painter go boom', tile);
+            //   break;
+            // }
+            // case SPECIALS.BOMB: {
+            //   console.log('bomb go boom', tile);
+            //   break;
+            // }
+            // case SPECIALS.WRAPPED: {
+            //   console.log('wrapped go boom', tile);
+            //   let neighbors = this.getValidNeighbors(row, col, true);
+            //   neighbors.forEach(n => this.hitPosition(this.getPosition(n.row, n.col)));
+            //   break;
+            // }
+            case SPECIALS.STRIPED_H: {
+              const directions = [DIRECTIONS.LEFT, DIRECTIONS.RIGHT];
+              return this.handleSpecialStriped(directions, row, col);
+            }
+            case SPECIALS.STRIPED_V: {
+              const directions = [DIRECTIONS.UP, DIRECTIONS.DOWN];
+              return this.handleSpecialStriped(directions, row, col);
+            }
+            case SPECIALS.FISH: {
+              return this.handleSpecialFish(row, col);
+            }
           }
-          case SPECIALS.BOMB: {
-            console.log('bomb go boom');
-            break;
-          }
-          case SPECIALS.WRAPPED: {
-            console.log('wrapped go boom');
-            break;
-          }
-          case SPECIALS.STRIPED_H: {
-            console.log('horizontal facing striped go boom');
-            break;
-          }
-          case SPECIALS.STRIPED_V: {
-            console.log('vertical facing striped go boom');
-            break;
-          }
-          case SPECIALS.FISH: {
-            console.log('fish go boom');
-            break;
-          }
-          default: break;
+        }),
+      ]);
+    },
+
+    // Handle special striped tiles
+    handleSpecialStriped(directions, row, col) {
+      // Hit each position
+      const positionCopy = deepCopy(this.getPosition(row, col));
+      this.hitPosition(positionCopy).then(this.addScore);
+
+      // Get and filter positions in directions that we need to hit next
+      const filteredCoords = directions.map(direction => {
+        const coords = this.getCoordinatesInDirection(row, col, direction);
+        return { ...coords, direction };
+      }).filter(c => this.withinBoard(c.row, c.col));
+
+      // Base case
+      if (filteredCoords.length <= 0) {
+        return Promise.resolve();
+      }
+
+      // Recursive case
+      // Promise.all makes sure we wait for all the animations to finish
+      return Promise.all(filteredCoords.map(coords => {
+        const { row: nextRow, col: nextCol, direction } = coords;
+
+        return new Promise(resolve => {
+          setTimeout(() => resolve(
+            this.handleSpecialStriped(
+              [direction],
+              nextRow,
+              nextCol,
+            )
+          ), TIMES.ANIMATIONS.STRIPED);
+        })
+      }));
+    },
+
+    // Handle special fish tiles
+    handleSpecialFish(row, col) {
+      return new Promise(resolve => {
+        let randomRow = random(this.rows - 1);
+        let randomCol = random(this.cols - 1);
+
+        // Make sure we choose a different random position
+        while (randomRow === row && randomCol === col) {
+          randomRow = random(this.rows - 1);
+          randomCol = random(this.cols - 1);
         }
+
+        setTimeout(() => {
+          // Hit the position
+          const positionCopy = deepCopy(this.getPosition(randomRow, randomCol));
+          this.hitPosition(positionCopy).then(this.addScore);
+          resolve();
+        }, TIMES.ANIMATIONS.FISH);
       });
-
-
-      // Return promise for chaining
-      return Promise.resolve({ points, removedMatches });
     },
 
     // Add points to the level score
-    addScore({ points, removedMatches }) {
+    addScore(points) {
+      // Add the points
       this.$emit('addScore', points);
-
-      // Return promise for chaining
-      return Promise.resolve({ removedMatches });
     },
 
     // Set any special tiles that were created
-    setSpecialTiles({ removedMatches }) {
+    setSpecialTiles([ removedMatches ]) {
       for (let match of removedMatches) {
         const special = match.special;
 
@@ -462,8 +532,8 @@ export default {
 
     // Sets all tile's shifts
     setTileShifts() {
-      // Filter positions for column start positions that aren't frozen
-      const columnStarts = this.positions.filter((p) => p.isColumnStart && !p.isFrozen);
+      // Filter positions for column start positions that aren't blocked
+      const columnStarts = this.positions.filter((p) => p.columnStart && p.blocker === BLOCKERS.NONE);
 
       // Set shifts for each tile in each column
       columnStarts.forEach((startPosition) => {
@@ -692,17 +762,60 @@ export default {
       tile.special = SPECIALS.NONE;
     },
 
+    hitPosition(position) {
+      // Return a new promise with the resulting points from this position hit
+      return new Promise(resolve => {
+        // First check if there's a blocker on the position, to prevent
+        // hitting a blocked tile, if there is one under the blocker
+        if (this.hasBlocker(position)) {
+          this.hitBlocker(position);
+        } else {
+          // If there is a tile to hit, hit it and resolve with tile points
+          const tile = this.getTile(position.row, position.col);
+          if (tile && !tile.removed) {
+            this.removeTile(tile);
+            resolve(POINTS.TILE);
+          }
+        }
+
+        // We either hit a blocker or there wasn't a tile to hit
+        resolve(POINTS.NONE);
+      });
+    },
+
+    isActivePosition(position) {
+      return (
+        position.active &&
+        !this.hasBlocker(position)
+      );
+    },
+
+    hasBlocker(position) {
+      // console.log(position);
+      return position.blocker !== BLOCKERS.NONE;
+    },
+
+    hitBlocker(position) {
+      const blocker = position.blocker;
+      const base = blocker.slice(0, -1);
+      const layer = parseInt(blocker.slice(-1));
+
+      position.blocker = !isNaN(layer) && layer > 1
+        ? BLOCKERS[`${base}${layer}`]
+        : BLOCKERS.NONE;
+    },
+
     coordinatesToIndex(pos) {
       return (pos.row * this.cols) + pos.col;
     },
 
     reverseIterateColumn(position, func) {
       // Recurse until this column stops
-      if (position.flowDirection !== 'NONE') {
+      if (position.flowDirection !== DIRECTIONS.NONE) {
         // The column isn't supposed to stop here, so check next position
-        // to see if it's frozen
+        // to see if it's blocked
         const nextPosition = this.getNextPositionFromFlow(position);
-        if (!nextPosition.isFrozen) {
+        if (nextPosition.blocker === BLOCKERS.NONE) {
           // We're good to recurse
           this.reverseIterateColumn(nextPosition, func);
         }
@@ -743,7 +856,14 @@ export default {
       const lines = getLines(row, col);
 
       // Filter out lines that don't fit
-      return lines.filter((line) => line.positions.every((p) => this.withinBoard(p.row, p.col)));
+      return lines.filter((line) => line.positions.every((p) => {
+        const position = this.getPosition(p.row, p.col);
+
+        return (
+          this.withinBoard(p.row, p.col) &&
+          this.isActivePosition(position)
+        );
+      }));
     },
 
     getNextPositionFromFlow(position) {
@@ -921,11 +1041,11 @@ $tile-padding: 4px; // Padding between tiles
 $tile-radius: 3px; // Border radius on tiles
 $tile-font: 'Open Sans', sans-serif;
 
-$colors: $blue,
-         $green,
+$colors: $red,
          $orange,
+         $green,
+         $blue,
          $purple,
-         $red,
          $yellow;
 
 $remove-time: 125ms;

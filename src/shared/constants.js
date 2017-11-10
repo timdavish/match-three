@@ -91,6 +91,7 @@ export const TIMES = {
     SWAP: 300,
     // Special animations
     STRIPED: 50,
+    FISH: 250,
   },
   WAITS: {
     SUGGESTION: 10000,
