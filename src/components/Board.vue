@@ -451,36 +451,31 @@ export default {
 
     // Handle special striped tiles
     handleSpecialStriped(directions, row, col) {
-      // Hit each position
-      const positionCopy = deepCopy(this.getPosition(row, col));
-      this.hitPosition(positionCopy).then(this.addScore);
-
       // Get and filter positions in directions that we need to hit next
       const filteredCoords = directions.map(direction => {
         const coords = this.getCoordinatesInDirection(row, col, direction);
         return { ...coords, direction };
       }).filter(c => this.withinBoard(c.row, c.col));
 
-      // Base case
-      if (filteredCoords.length <= 0) {
-        return Promise.resolve();
-      }
+      // Save this position
+      const positionCopy = deepCopy(this.getPosition(row, col));
 
       // Recursive case
       // Promise.all makes sure we wait for all the animations to finish
-      return Promise.all(filteredCoords.map(coords => {
-        const { row: nextRow, col: nextCol, direction } = coords;
+      return Promise.all([
+        // Hit this position and check for chain reactions
+        this.hitPosition(positionCopy).then(this.postHitPosition),
+        // Recurse to more positions if there are any
+        ...filteredCoords.map(coords => {
+          const { row: nextRow, col: nextCol, direction } = coords;
 
-        return new Promise(resolve => {
-          setTimeout(() => resolve(
-            this.handleSpecialStriped(
-              [direction],
-              nextRow,
-              nextCol,
-            )
-          ), TIMES.ANIMATIONS.STRIPED);
-        })
-      }));
+          return new Promise(resolve => {
+            setTimeout(() => resolve(
+              this.handleSpecialStriped([direction], nextRow, nextCol)
+            ), TIMES.ANIMATIONS.STRIPED);
+          });
+        }),
+      ]);
     },
 
     // Handle special fish tiles
@@ -496,12 +491,24 @@ export default {
         }
 
         setTimeout(() => {
-          // Hit the position
+          // Save this position
           const positionCopy = deepCopy(this.getPosition(randomRow, randomCol));
-          this.hitPosition(positionCopy).then(this.addScore);
-          resolve();
+          resolve(
+            // Hit this position and check for chain reactions
+            this.hitPosition(positionCopy).then(this.postHitPosition)
+          );
         }, TIMES.ANIMATIONS.FISH);
       });
+    },
+
+    postHitPosition({ points, status, payload }) {
+      // Check for a special chain reaction
+      if (status === 2) {
+        // Chain reaction
+        return this.handleSpecials({ removedSpecials: payload });
+      }
+
+      return Promise.resolve();
     },
 
     // Add points to the level score
@@ -765,6 +772,9 @@ export default {
     hitPosition(position) {
       // Return a new promise with the resulting points from this position hit
       return new Promise(resolve => {
+        let status = 1;
+        let payload = [];
+
         // First check if there's a blocker on the position, to prevent
         // hitting a blocked tile, if there is one under the blocker
         if (this.hasBlocker(position)) {
@@ -773,13 +783,17 @@ export default {
           // If there is a tile to hit, hit it and resolve with tile points
           const tile = this.getTile(position.row, position.col);
           if (tile && !tile.removed) {
+            if (tile.special !== SPECIALS.NONE) {
+              status = 2;
+              payload.push(deepCopy(tile));
+            }
+
             this.removeTile(tile);
-            resolve(POINTS.TILE);
+            this.addScore(POINTS.TILE);
           }
         }
 
-        // We either hit a blocker or there wasn't a tile to hit
-        resolve(POINTS.NONE);
+        resolve({ status, payload });
       });
     },
 
@@ -791,7 +805,6 @@ export default {
     },
 
     hasBlocker(position) {
-      // console.log(position);
       return position.blocker !== BLOCKERS.NONE;
     },
 

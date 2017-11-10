@@ -90,8 +90,8 @@ export const TIMES = {
     SHUFFLE: 700,
     SWAP: 300,
     // Special animations
-    STRIPED: 50,
-    FISH: 250,
+    STRIPED: 100,
+    FISH: 100,
   },
   WAITS: {
     SUGGESTION: 10000,
