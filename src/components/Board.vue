@@ -160,6 +160,11 @@ export default {
         // Then handle tile shifting
         .then(() => this.setTileShifts())
         .then(() => this.shiftTiles())
+        // Then handle exploded wrapped specials
+        .then(() => this.handleExplodedSpecialWrappeds())
+        // Then handle tile shifting
+        .then(() => this.setTileShifts())
+        .then(() => this.shiftTiles())
         // Then rerun the entire process until no matches are created
         .then(() => this.resolveMatches());
     },
@@ -427,11 +432,11 @@ export default {
             //   console.log('bomb go boom', tile);
             //   break;
             // }
-            // case SPECIALS.WRAPPED: {
-            //   console.log('wrapped go boom', tile);
-            //   let neighbors = this.getValidNeighbors(row, col, true);
-            //   neighbors.forEach(n => this.hitPosition(this.getPosition(n.row, n.col)));
-            //   break;
+            case SPECIALS.WRAPPED: {
+              return this.handleSpecialWrapped(row, col);
+            }
+            // case SPECIALS.WRAPPED_EXPLODED: {
+            //   return this.handleSpecialWrapped(row, col, true);
             // }
             case SPECIALS.STRIPED_H: {
               const directions = [DIRECTIONS.LEFT, DIRECTIONS.RIGHT];
@@ -449,6 +454,58 @@ export default {
       ]);
     },
 
+    // Handle special wrapped tiles
+    handleSpecialWrapped(row, col, exploded = false) {
+      const tile = this.getTile(row, col);
+
+      if (!exploded) {
+        // Make this position's tile an exploded wrapped
+        tile.removed = false;
+        tile.special = SPECIALS.WRAPPED_EXPLODED;
+      } else {
+        this.removeTile(tile);
+      }
+
+      const neighbors = this.getValidNeighbors(row, col, true);
+
+      // Promise.all makes sure we wait for all the animations to finish
+      return Promise.all(neighbors.map(n => {
+        return new Promise(resolve => {
+          setTimeout(() => {
+            // Save this position
+            const positionCopy = deepCopy(this.getPosition(n.row, n.col));
+            resolve(
+              // Hit this position and check for chain reactions
+              this.hitPosition(positionCopy).then(this.postHitPosition)
+            );
+          }, TIMES.ANIMATIONS.WRAPPED);
+        });
+      }));
+    },
+
+    // Handle exploded special wrapped tiles
+    handleExplodedSpecialWrappeds() {
+      const explodeds = this.tiles.filter(tile => tile.special === SPECIALS.WRAPPED_EXPLODED);
+
+      return Promise.all(explodeds.map(tile => {
+        const { row, col } = tile;
+
+        return this.handleSpecialWrapped(row, col, true)
+
+
+        // return new Promise(resolve => {
+        //   setTimeout(() => {
+        //     const { row, col } = tile;
+        //
+        //     resolve(
+        //       // Blow up exploded special wrappeds
+        //       this.handleSpecialWrapped(row, col, true)
+        //     );
+        //   }, TIMES.ANIMATIONS.WRAPPED);
+        // });
+      }));
+    },
+
     // Handle special striped tiles
     handleSpecialStriped(directions, row, col) {
       // Get and filter positions in directions that we need to hit next
@@ -460,7 +517,6 @@ export default {
       // Save this position
       const positionCopy = deepCopy(this.getPosition(row, col));
 
-      // Recursive case
       // Promise.all makes sure we wait for all the animations to finish
       return Promise.all([
         // Hit this position and check for chain reactions
@@ -480,6 +536,7 @@ export default {
 
     // Handle special fish tiles
     handleSpecialFish(row, col) {
+      // Promise makes sure we wait for all the animations to finish
       return new Promise(resolve => {
         let randomRow = random(this.rows - 1);
         let randomCol = random(this.cols - 1);
@@ -782,7 +839,7 @@ export default {
         } else {
           // If there is a tile to hit, hit it and resolve with tile points
           const tile = this.getTile(position.row, position.col);
-          if (tile && !tile.removed) {
+          if (tile && !tile.removed && tile.special) {
             if (tile.special !== SPECIALS.NONE) {
               status = 2;
               payload.push(deepCopy(tile));
@@ -924,8 +981,8 @@ export default {
       ];
 
       const neighbors = all
-        ? edges.concat(corners)
-        : edges;
+        ? [...edges, ...corners]
+        : [...edges];
 
       return neighbors.filter(n => this.validNeighbor(row, col, n.row, n.col, all));
     },
@@ -1010,14 +1067,16 @@ export default {
      * @return {Boolean} Whether the given positions are neighbors or not
      */
     validNeighbor(row1, col1, row2, col2, all = false) {
-      return (
-        this.withinBoard(row1, col1) && this.withinBoard(row2, col2) &&
+      const withinBoard = this.withinBoard(row1, col1) && this.withinBoard(row2, col2);
+      const validNeighbor = (
         // Edge neighbors
         (Math.abs(row1 - row2) === 1 && col1 === col2) ||
         (Math.abs(col1 - col2) === 1 && row1 === row2) ||
         // Corner neighbors (if all)
         (all && Math.abs(row1 - row2) === 1 && Math.abs(col1 - col2) === 1)
       );
+
+      return withinBoard && validNeighbor;
     },
 
     /**

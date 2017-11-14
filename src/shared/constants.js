@@ -90,6 +90,7 @@ export const TIMES = {
     SHUFFLE: 700,
     SWAP: 300,
     // Special animations
+    WRAPPED: 100,
     STRIPED: 100,
     FISH: 100,
   },
@@ -105,6 +106,7 @@ export const SPECIALS = {
   PAINTER: 'PAINTER',
   BOMB: 'BOMB',
   WRAPPED: 'WRAPPED',
+  WRAPPED_EXPLODED: 'WRAPPED_EXPLODED',
   STRIPED_H: 'STRIPED H',
   STRIPED_V: 'STRIPED V',
   FISH: 'FISH',
