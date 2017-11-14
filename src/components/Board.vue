@@ -159,12 +159,12 @@ export default {
         .then((data) => this.setSpecialTiles(data))
         // Then handle tile shifting
         .then(() => this.setTileShifts())
-        .then(() => this.shiftTiles())
+        .then((data) => this.shiftTiles(data))
         // Then handle exploded wrapped specials
-        .then(() => this.handleExplodedSpecialWrappeds())
+        .then(() => this.handleSpecialExplodedWrappeds())
         // Then handle tile shifting
         .then(() => this.setTileShifts())
-        .then(() => this.shiftTiles())
+        .then((data) => this.shiftTiles(data))
         // Then rerun the entire process until no matches are created
         .then(() => this.resolveMatches());
     },
@@ -373,8 +373,6 @@ export default {
     // Handle match removals
     // Animation timing: REMOVE
     handleMatches() {
-      const tiles = this.tiles;
-
       // Keep track of points
       let points = 0;
       // Keep track of removed matches
@@ -411,7 +409,7 @@ export default {
       return Promise.resolve({ removedMatches, removedSpecials })
         // Wait for animation
         .then(waitInPromise(TIMES.ANIMATIONS.REMOVE))
-        // Add score
+        // Add bonus score
         .then(this.addScore(points));
     },
 
@@ -435,9 +433,6 @@ export default {
             case SPECIALS.WRAPPED: {
               return this.handleSpecialWrapped(row, col);
             }
-            // case SPECIALS.WRAPPED_EXPLODED: {
-            //   return this.handleSpecialWrapped(row, col, true);
-            // }
             case SPECIALS.STRIPED_H: {
               const directions = [DIRECTIONS.LEFT, DIRECTIONS.RIGHT];
               return this.handleSpecialStriped(directions, row, col);
@@ -458,12 +453,13 @@ export default {
     handleSpecialWrapped(row, col, exploded = false) {
       const tile = this.getTile(row, col);
 
-      if (!exploded) {
+      if (exploded) {
+        // Remove the tile
+        this.removeTile(tile);
+      } else {
         // Make this position's tile an exploded wrapped
         tile.removed = false;
         tile.special = SPECIALS.WRAPPED_EXPLODED;
-      } else {
-        this.removeTile(tile);
       }
 
       const neighbors = this.getValidNeighbors(row, col, true);
@@ -483,26 +479,14 @@ export default {
       }));
     },
 
-    // Handle exploded special wrapped tiles
-    handleExplodedSpecialWrappeds() {
+    // Handle special exploded wrapped tiles
+    handleSpecialExplodedWrappeds() {
       const explodeds = this.tiles.filter(tile => tile.special === SPECIALS.WRAPPED_EXPLODED);
 
       return Promise.all(explodeds.map(tile => {
         const { row, col } = tile;
 
         return this.handleSpecialWrapped(row, col, true)
-
-
-        // return new Promise(resolve => {
-        //   setTimeout(() => {
-        //     const { row, col } = tile;
-        //
-        //     resolve(
-        //       // Blow up exploded special wrappeds
-        //       this.handleSpecialWrapped(row, col, true)
-        //     );
-        //   }, TIMES.ANIMATIONS.WRAPPED);
-        // });
       }));
     },
 
@@ -558,16 +542,6 @@ export default {
       });
     },
 
-    postHitPosition({ points, status, payload }) {
-      // Check for a special chain reaction
-      if (status === 2) {
-        // Chain reaction
-        return this.handleSpecials({ removedSpecials: payload });
-      }
-
-      return Promise.resolve();
-    },
-
     // Add points to the level score
     addScore(points) {
       // Add the points
@@ -599,6 +573,8 @@ export default {
       // Filter positions for column start positions that aren't blocked
       const columnStarts = this.positions.filter((p) => p.columnStart && p.blocker === BLOCKERS.NONE);
 
+      let haveShifts = false;
+
       // Set shifts for each tile in each column
       columnStarts.forEach((startPosition) => {
         const shifts = [];
@@ -612,6 +588,8 @@ export default {
           const newShift = this.getOppositeDirection(feedDirection);
 
           if (tile.removed) {
+            haveShifts = true;
+
             // Add new shift
             shifts.unshift(newShift);
 
@@ -628,7 +606,7 @@ export default {
           }
         });
 
-        // Set new tile shifts and starting location
+        // Set new tile shifts and starting positions
         const columnStartFlowDirection = startPosition.flowDirection;
         const columnStartFeedDirection = this.getOppositeDirection(columnStartFlowDirection);
         let { row, col } = startPosition;
@@ -656,21 +634,21 @@ export default {
       });
 
       // Return promise for chaining
-      return Promise.resolve();
+      return Promise.resolve(haveShifts);
     },
 
     // Shifts all shiftable tiles
     // Animation timing: SHIFT
-    shiftTiles() {
-      // Filter tiles for tiles with shifts
+    shiftTiles(haveShifts = true) {
+      // Get tiles with shifts
       const shiftableTiles = this.tiles.filter((tile) => tile.shifts.length > 0);
 
       // Base case
       if (shiftableTiles.length <= 0) {
         // Return promise for chaining
         return Promise.resolve()
-          // Wait for animation
-          .then(waitInPromise(TIMES.ANIMATIONS.SHIFT));
+          // Wait for animation if we had shifts
+          .then(waitInPromise(haveShifts ? TIMES.ANIMATIONS.SHIFT : 0));
       }
 
       // Recursive case
@@ -839,7 +817,7 @@ export default {
         } else {
           // If there is a tile to hit, hit it and resolve with tile points
           const tile = this.getTile(position.row, position.col);
-          if (tile && !tile.removed && tile.special) {
+          if (tile && !tile.removed && tile.special && tile.special !== SPECIALS.WRAPPED_EXPLODED) {
             if (tile.special !== SPECIALS.NONE) {
               status = 2;
               payload.push(deepCopy(tile));
@@ -852,6 +830,16 @@ export default {
 
         resolve({ status, payload });
       });
+    },
+
+    postHitPosition({ points, status, payload }) {
+      // Check for a special chain reaction
+      if (status === 2) {
+        // Chain reaction
+        return this.handleSpecials({ removedSpecials: payload });
+      }
+
+      return Promise.resolve();
     },
 
     isActivePosition(position) {
