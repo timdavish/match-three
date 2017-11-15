@@ -99,14 +99,16 @@ export const TIMES = {
     SHUFFLE: 700,
     SWAP: 300,
     // Special animations
+    BOMB_MAXIMUM: 1250,
+    BOMB_MINIMUM: 750,
     WRAPPED: 100,
     STRIPED: 100,
     FISH: 100,
   },
   WAITS: {
     SUGGESTION: 10000,
-    THINK_MINIMUM: 500,
     THINK_MAXIMUM: 1000,
+    THINK_MINIMUM: 500,
   },
 };
 

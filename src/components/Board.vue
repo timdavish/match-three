@@ -28,7 +28,7 @@
 /* eslint-disable */
 
 import Tile from './Tile';
-import { BLOCKERS, DIRECTIONS, POINTS, SPECIALS, STATUS, TIMES, VECTORS } from '../shared/constants';
+import { BLOCKERS, DIRECTIONS, POINTS, PRIORITIES, SPECIALS, STATUS, TIMES, VECTORS } from '../shared/constants';
 import { getLines } from '../shared/lines';
 import { deepCopy, deepEqual, isBlank, random, waitInPromise } from '../shared/util';
 
@@ -298,15 +298,29 @@ export default {
           const p2 = this.getPosition(row, col + 1);
 
           if (this.isActivePosition(p1) && this.isActivePosition(p2)) {
-            // Swap, find matches, swap back
-            this.swapTiles(row, col, row, col + 1, true);
-            this.findMatches();
-            this.swapTiles(row, col, row, col + 1, true);
-            // Check if the swap made a match
-            if (this.matches.length > 0) {
-              // Found at least one valid move
-              const priorities = this.matches.map(m => m.priority);
-              moves.push({ row1: row, col1: col, row2: row, col2: col + 1, priorities });
+            const tile1 = this.getTile(row, col);
+            const tile2 = this.getTile(row, col + 1);
+
+            // Check for specials
+            if (!this.hasBigSpecial(tile1) && !this.hasBigSpecial(tile2)) {
+              // Swap, find matches, swap back
+              this.swapTiles(row, col, row, col + 1, true);
+              this.findMatches();
+              this.swapTiles(row, col, row, col + 1, true);
+              // Check if the swap made a match
+              if (this.matches.length > 0) {
+                // Found at least one valid move
+                const priorities = this.matches.map(m => m.priority);
+                moves.push({ row1: row, col1: col, row2: row, col2: col + 1, priorities });
+              }
+            } else {
+              // Big specials can be swapped with any tile
+              const priorities = [
+                PRIORITIES[tile1.special],
+                PRIORITIES[tile2.special],
+              ];
+
+              moves.push({row1: row, col1: col, row2: row, col2: col + 1, priorities });
             }
           }
         }
@@ -319,15 +333,29 @@ export default {
           const p2 = this.getPosition(row + 1, col);
 
           if (this.isActivePosition(p1) && this.isActivePosition(p2)) {
-            // Swap, find matches, swap back
-            this.swapTiles(row, col, row + 1, col, true);
-            this.findMatches();
-            this.swapTiles(row, col, row + 1, col, true);
-            // Check if the swap made a match
-            if (this.matches.length > 0) {
-              // Found at least one valid move
-              const priorities = this.matches.map(m => m.priority);
-              moves.push({ row1: row, col1: col, row2: row + 1, col2: col, priorities });
+            const tile1 = this.getTile(row, col);
+            const tile2 = this.getTile(row + 1, col);
+
+            // Check for specials
+            if (!this.hasBigSpecial(tile1) && !this.hasBigSpecial(tile2)) {
+              // Swap, find matches, swap back
+              this.swapTiles(row, col, row + 1, col, true);
+              this.findMatches();
+              this.swapTiles(row, col, row + 1, col, true);
+              // Check if the swap made a match
+              if (this.matches.length > 0) {
+                // Found at least one valid move
+                const priorities = this.matches.map(m => m.priority);
+                moves.push({ row1: row, col1: col, row2: row + 1, col2: col, priorities });
+              }
+            } else {
+              // Big specials can be swapped with any tile
+              const priorities = [
+                PRIORITIES[tile1.special],
+                PRIORITIES[tile2.special],
+              ];
+
+              moves.push({row1: row, col1: col, row2: row + 1, col2: col, priorities });
             }
           }
         }
@@ -361,6 +389,8 @@ export default {
         // Priorities were equal
         return 0;
       });
+
+      console.log(deepCopy(moves));
 
       // Reset matches
       this.matches = [];
@@ -426,20 +456,19 @@ export default {
             //   console.log('painter go boom', tile);
             //   break;
             // }
-            // case SPECIALS.BOMB: {
-            //   console.log('bomb go boom', tile);
-            //   break;
-            // }
+            case SPECIALS.BOMB: {
+              return this.handleSpecialBomb(row, col);
+            }
             case SPECIALS.WRAPPED: {
               return this.handleSpecialWrapped(row, col);
             }
             case SPECIALS.STRIPED_H: {
               const directions = [DIRECTIONS.LEFT, DIRECTIONS.RIGHT];
-              return this.handleSpecialStriped(directions, row, col);
+              return this.handleSpecialStriped(row, col, directions);
             }
             case SPECIALS.STRIPED_V: {
               const directions = [DIRECTIONS.UP, DIRECTIONS.DOWN];
-              return this.handleSpecialStriped(directions, row, col);
+              return this.handleSpecialStriped(row, col, directions);
             }
             case SPECIALS.FISH: {
               return this.handleSpecialFish(row, col);
@@ -447,6 +476,28 @@ export default {
           }
         }),
       ]);
+    },
+
+    // Handle special bomb tiles
+    handleSpecialBomb(row, col, options = {}) {
+      const { type } = options;
+
+      const typeToBomb = isBlank(type)
+        ? this.getRandomTileType()
+        : type;
+      const tilesToBomb = this.tiles.filter(tile => tile.type === typeToBomb);
+      const bomb = this.getTile(row, col);
+
+      return Promise.all([
+        ...tilesToBomb.map(tile => {
+          return new Promise(resolve => {
+            // Bomb the tile in a random amount of time
+            const bombTime = random(TIMES.ANIMATIONS.BOMB_MINIMUM, TIMES.ANIMATIONS.BOMB_MAXIMUM);
+
+            setTimeout(() => resolve(this.removeTile(tile)), bombTime);
+          });
+        }),
+      ]).then(this.removeTile(bomb));
     },
 
     // Handle special wrapped tiles
@@ -491,7 +542,7 @@ export default {
     },
 
     // Handle special striped tiles
-    handleSpecialStriped(directions, row, col) {
+    handleSpecialStriped(row, col, directions) {
       // Get and filter positions in directions that we need to hit next
       const filteredCoords = directions.map(direction => {
         const coords = this.getCoordinatesInDirection(row, col, direction);
@@ -511,7 +562,7 @@ export default {
 
           return new Promise(resolve => {
             setTimeout(() => resolve(
-              this.handleSpecialStriped([direction], nextRow, nextCol)
+              this.handleSpecialStriped(nextRow, nextCol, [direction])
             ), TIMES.ANIMATIONS.STRIPED);
           });
         }),
@@ -561,6 +612,11 @@ export default {
 
           tile.removed = false;
           tile.special = special;
+
+          // Bombs are the only type that don't have a type
+          if (special === SPECIALS.BOMB) {
+            tile.type = this.tileTypes.length;
+          }
         }
       }
 
@@ -751,7 +807,31 @@ export default {
           if (this.validMove(row1, col1, row2, col2)) {
             // Decrement moves and run the game loop
             this.addMoves();
-            return this.gameLoop();
+
+            const tile1 = this.getTile(row1, col1);
+            const tile2 = this.getTile(row2, col2);
+            const type1 = tile1.type;
+            const type2 = tile2.type;
+
+            if (tile1.special === SPECIALS.BOMB) {
+              const options = { type: type2 };
+
+              return this.handleSpecialBomb(row1, col1, options)
+                // Then handle tile shifting
+                .then(() => this.setTileShifts())
+                .then((data) => this.shiftTiles(data))
+                .then(this.gameLoop);
+            } else if (tile2.special === SPECIALS.BOMB) {
+              const options = { type: type1 };
+
+              return this.handleSpecialBomb(row2, col2, options)
+                // Then handle tile shifting
+                .then(() => this.setTileShifts())
+                .then((data) => this.shiftTiles(data))
+                .then(this.gameLoop);
+            } else {
+              return this.gameLoop();
+            }
           } else {
             // Set game status to idle and swap the two tiles back
             this.setGameStatus(STATUS.IDLE);
@@ -851,6 +931,14 @@ export default {
 
     hasBlocker(position) {
       return position.blocker !== BLOCKERS.NONE;
+    },
+
+    hasSpecial(tile) {
+      return tile.special !== SPECIALS.NONE;
+    },
+
+    hasBigSpecial(tile) {
+      return tile.special === SPECIALS.PAINTER || tile.special === SPECIALS.BOMB;
     },
 
     hitBlocker(position) {
