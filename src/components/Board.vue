@@ -390,8 +390,6 @@ export default {
         return 0;
       });
 
-      console.log(deepCopy(moves));
-
       // Reset matches
       this.matches = [];
       this.moves = moves;
@@ -452,10 +450,9 @@ export default {
           const { row, col, special } = tile;
 
           switch (special) {
-            // case SPECIALS.PAINTER: {
-            //   console.log('painter go boom', tile);
-            //   break;
-            // }
+            case SPECIALS.PAINTER: {
+              return this.handleSpecialPainter(row, col);
+            }
             case SPECIALS.BOMB: {
               return this.handleSpecialBomb(row, col);
             }
@@ -473,20 +470,45 @@ export default {
             case SPECIALS.FISH: {
               return this.handleSpecialFish(row, col);
             }
+            default: {
+              return Promise.resolve();
+            }
           }
         }),
       ]);
+    },
+
+    // Handle special painter tiles
+    handleSpecialPainter(row, col, options = {}) {
+      const { type } = options;
+
+      const painter = this.getTile(row, col);
+      const typeToPaint = isBlank(type) || type === painter.type
+        ? this.getRandomTileType(painter.type)
+        : type;
+      const tilesToPaint = this.tiles.filter(tile => tile.type === typeToPaint);
+
+      return Promise.all([
+        ...tilesToPaint.map(tile => {
+          return new Promise(resolve => {
+            // Paint the tile in a random amount of time
+            const paintTime = random(TIMES.ANIMATIONS.PAINTER_MINIMUM, TIMES.ANIMATIONS.PAINTER_MAXIMUM);
+
+            setTimeout(() => resolve(this.setTileAs(tile, { type: painter.type })), paintTime);
+          });
+        }),
+      ]).then(this.removeTile(painter));
     },
 
     // Handle special bomb tiles
     handleSpecialBomb(row, col, options = {}) {
       const { type } = options;
 
+      const bomb = this.getTile(row, col);
       const typeToBomb = isBlank(type)
         ? this.getRandomTileType()
         : type;
       const tilesToBomb = this.tiles.filter(tile => tile.type === typeToBomb);
-      const bomb = this.getTile(row, col);
 
       return Promise.all([
         ...tilesToBomb.map(tile => {
@@ -537,7 +559,7 @@ export default {
       return Promise.all(explodeds.map(tile => {
         const { row, col } = tile;
 
-        return this.handleSpecialWrapped(row, col, true)
+        return this.handleSpecialWrapped(row, col, true);
       }));
     },
 
@@ -810,26 +832,44 @@ export default {
 
             const tile1 = this.getTile(row1, col1);
             const tile2 = this.getTile(row2, col2);
-            const type1 = tile1.type;
-            const type2 = tile2.type;
+            const special1 = tile1.special;
+            const special2 = tile2.special;
 
-            if (tile1.special === SPECIALS.BOMB) {
-              const options = { type: type2 };
+            // Check what kind of tiles we're swapping
+            if (this.isPainterBombSwap(special1, special2)) {
+             // Painter with a bomb
+             return this.handlePainterBombSwap(tile1, tile2);
 
-              return this.handleSpecialBomb(row1, col1, options)
-                // Then handle tile shifting
-                .then(() => this.setTileShifts())
-                .then((data) => this.shiftTiles(data))
-                .then(this.gameLoop);
-            } else if (tile2.special === SPECIALS.BOMB) {
-              const options = { type: type1 };
+           } else if (this.isPainterPainterSwap(special1, special2)) {
+              // Painter with a painter
+              return this.handlePainterPainterSwap(tile1, tile2);
 
-              return this.handleSpecialBomb(row2, col2, options)
-                // Then handle tile shifting
-                .then(() => this.setTileShifts())
-                .then((data) => this.shiftTiles(data))
-                .then(this.gameLoop);
+            } else if (this.isPainterOtherSwap(special1, special2)) {
+              // Painter with another special
+              return this.handlePainterOtherSwap(tile1, tile2);
+
+            } else if (this.isPainterNoneSwap(special1, special2)) {
+              // Painter with a normal tile
+              return this.handlePainterNoneSwap(tile1, tile2);
+
+            } else if (this.isBombBombSwap(special1, special2)) {
+              // Bomb with a bomb
+              return this.handleBombBombSwap(tile1, tile2);
+
+            } else if (this.isBombOtherSwap(special1, special2)) {
+              // Bomb with another special
+              return this.handleBombOtherSwap(tile1, tile2);
+
+            } else if (this.isBombNoneSwap(special1, special2)) {
+              // Bomb with a normal tile
+              return this.handleBombNoneSwap(tile1, tile2);
+
+            } else if (this.isOtherOtherSwap(special1, special2)) {
+              // Special with another special
+              return this.handleOtherOtherSwap(tile1, tile2);
+
             } else {
+              // Normal swap
               return this.gameLoop();
             }
           } else {
@@ -838,6 +878,115 @@ export default {
             return this.swapTiles(row1, col1, row2, col2);
           }
         });
+    },
+
+    isPainterBombSwap(special1, special2) {
+      return (
+        (special1 === SPECIALS.PAINTER && special2 === SPECIALS.BOMB) ||
+        (special2 === SPECIALS.PAINTER && special1 === SPECIALS.BOMB)
+      );
+    },
+
+    handlePainterBombSwap(tile1, tile2) {
+      console.log(tile1.special, 'swapped with', tile2.special);
+    },
+
+    isPainterPainterSwap(special1, special2) {
+      return special1 === SPECIALS.PAINTER && special2 === SPECIALS.PAINTER;
+    },
+
+    handlePainterPainterSwap(tile1, tile2) {
+      console.log(tile1.special, 'swapped with', tile2.special);
+    },
+
+    isPainterOtherSwap(special1, special2) {
+      return (
+        (special1 === SPECIALS.PAINTER && special2 !== SPECIALS.NONE) ||
+        (special2 === SPECIALS.PAINTER && special1 !== SPECIALS.NONE)
+      );
+    },
+
+    handlePainterOtherSwap(tile1, tile2) {
+      console.log(tile1.special, 'swapped with', tile2.special);
+    },
+
+    isPainterNoneSwap(special1, special2) {
+      return special1 === SPECIALS.PAINTER || special2 === SPECIALS.PAINTER;
+    },
+
+    handlePainterNoneSwap(tile1, tile2) {
+      const { row: r1, col: c1, special: s1, type: t1 } = tile1;
+      const { row: r2, col: c2, special: s2, type: t2 } = tile2;
+
+      let row = r2;
+      let col = c2;
+      let options = { type: t1 };
+
+      if (s1 === SPECIALS.PAINTER) {
+        row = r1;
+        col = c1;
+        options.type = t2;
+      }
+
+      return this.handleSpecialPainter(row, col, options)
+        // Then handle tile shifting
+        .then(() => this.setTileShifts())
+        .then((data) => this.shiftTiles(data))
+        .then(this.gameLoop);
+    },
+
+    isBombBombSwap(special1, special2) {
+      return special1 === SPECIALS.BOMB && special2 === SPECIALS.BOMB;
+    },
+
+    handleBombBombSwap(tile1, tile2) {
+      console.log(tile1.special, 'swapped with', tile2.special);
+    },
+
+    isBombOtherSwap(special1, special2) {
+      return (
+        (special1 === SPECIALS.BOMB && special2 !== SPECIALS.NONE) ||
+        (special2 === SPECIALS.BOMB && special1 !== SPECIALS.NONE)
+      );
+    },
+
+    handleBombOtherSwap(tile1, tile2) {
+      console.log(tile1.special, 'swapped with', tile2.special);
+    },
+
+    isBombNoneSwap(special1, special2) {
+      return special1 === SPECIALS.BOMB || special2 === SPECIALS.BOMB;
+    },
+
+    handleBombNoneSwap(tile1, tile2) {
+      console.log(tile1.special, 'swapped with', tile2.special);
+
+      const { row: r1, col: c1, special: s1, type: t1 } = tile1;
+      const { row: r2, col: c2, special: s2, type: t2 } = tile2;
+
+      let row = r2;
+      let col = c2;
+      let options = { type: t1 };
+
+      if (s1 === SPECIALS.BOMB) {
+        row = r1;
+        col = c1;
+        options.type = t2;
+      }
+
+      return this.handleSpecialBomb(row, col, options)
+        // Then handle tile shifting
+        .then(() => this.setTileShifts())
+        .then((data) => this.shiftTiles(data))
+        .then(this.gameLoop);
+    },
+
+    isOtherOtherSwap(special1, special2) {
+      return special1 !== SPECIALS.NONE && special2 !== SPECIALS.NONE;
+    },
+
+    handleOtherOtherSwap(tile1, tile2) {
+      console.log(tile1.special, 'swapped with', tile2.special);
     },
 
     swapTiles(row1, col1, row2, col2, instant = false) {
@@ -870,8 +1019,23 @@ export default {
       return this.positions.find((p) => p.row === row && p.col === col);
     },
 
-    getRandomTileType() {
-      return random(this.tileTypes.length - 1);
+    getRandomTileType(not = null) {
+      let randomType;
+
+      while (isBlank(randomType) || !isBlank(not) && randomType === not) {
+        randomType = random(this.tileTypes.length - 1);
+      }
+
+      return randomType;
+    },
+
+    setTileAs(tile, options = {}) {
+      return new Promise(resolve => {
+        for (let option in options) {
+          tile[option] = options[option];
+        }
+        resolve();
+      });
     },
 
     setTileAt(tile, row, col) {

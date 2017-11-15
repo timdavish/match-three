@@ -99,6 +99,8 @@ export const TIMES = {
     SHUFFLE: 700,
     SWAP: 300,
     // Special animations
+    PAINTER_MAXIMUM: 1250,
+    PAINTER_MINIMUM: 750,
     BOMB_MAXIMUM: 1250,
     BOMB_MINIMUM: 750,
     WRAPPED: 100,
