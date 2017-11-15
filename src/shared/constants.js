@@ -73,6 +73,15 @@ export const POINTS = {
   NONE: 0,
 };
 
+export const PRIORITIES = {
+  PAINTER: 1,
+  BOMB: 2,
+  WRAPPED: 3,
+  STRIPED: 4,
+  FISH: 5,
+  NONE: 9,
+};
+
 export const TILETYPES = {
   BLUE: 'BLUE',
   GREEN: 'GREEN',

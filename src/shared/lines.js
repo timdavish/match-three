@@ -1,13 +1,13 @@
 /* eslint-disable no-use-before-define */
-import { POINTS, SPECIALS } from './constants';
+import { POINTS, PRIORITIES, SPECIALS } from './constants';
 
 export const defaultLineOptions = {
-  painters: true,
+  // painters: true,
   bombs: true,
-  wrappeds: true,
-  stripeds: true,
-  fishes: true,
-  normals: true,
+  // wrappeds: true,
+  // stripeds: true,
+  // fishes: true,
+  // normals: true,
 };
 
 // All lines
@@ -24,11 +24,11 @@ export const getLines = (row, col, lineOptions = defaultLineOptions) => {
   ];
 };
 
-// Lines: Priority 1: Color Painters
+// Lines: Color Painters
 export const getPainterLines = (row, col) => [
   // Color Painter (Horizontal, pointing UP with 1 extra UP)
   {
-    priority: 1,
+    priority: PRIORITIES.PAINTER,
     special: SPECIALS.PAINTER,
     bonusPoints: POINTS.PAINTER,
     positions: [
@@ -43,7 +43,7 @@ export const getPainterLines = (row, col) => [
   },
   // Color Painter (Horizontal, pointing DOWN with 1 extra DOWN)
   {
-    priority: 1,
+    priority: PRIORITIES.PAINTER,
     special: SPECIALS.PAINTER,
     bonusPoints: POINTS.PAINTER,
     positions: [
@@ -58,7 +58,7 @@ export const getPainterLines = (row, col) => [
   },
   // Color Painter (Vertical, pointing LEFT with 1 extra LEFT)
   {
-    priority: 1,
+    priority: PRIORITIES.PAINTER,
     special: SPECIALS.PAINTER,
     bonusPoints: POINTS.PAINTER,
     positions: [
@@ -73,7 +73,7 @@ export const getPainterLines = (row, col) => [
   },
   // Color Painter (Vertical, pointing RIGHT with 1 extra RIGHT)
   {
-    priority: 1,
+    priority: PRIORITIES.PAINTER,
     special: SPECIALS.PAINTER,
     bonusPoints: POINTS.PAINTER,
     positions: [
@@ -88,7 +88,7 @@ export const getPainterLines = (row, col) => [
   },
   // Color Painter (Horizontal, pointing UP)
   {
-    priority: 1,
+    priority: PRIORITIES.PAINTER,
     special: SPECIALS.PAINTER,
     bonusPoints: POINTS.PAINTER,
     positions: [
@@ -102,7 +102,7 @@ export const getPainterLines = (row, col) => [
   },
   // Color Painter (Horizontal, pointing DOWN)
   {
-    priority: 1,
+    priority: PRIORITIES.PAINTER,
     special: SPECIALS.PAINTER,
     bonusPoints: POINTS.PAINTER,
     positions: [
@@ -116,7 +116,7 @@ export const getPainterLines = (row, col) => [
   },
   // Color Painter (Vertical, pointing LEFT)
   {
-    priority: 1,
+    priority: PRIORITIES.PAINTER,
     special: SPECIALS.PAINTER,
     bonusPoints: POINTS.PAINTER,
     positions: [
@@ -130,7 +130,7 @@ export const getPainterLines = (row, col) => [
   },
   // Color Painter (Vertical, pointing RIGHT)
   {
-    priority: 1,
+    priority: PRIORITIES.PAINTER,
     special: SPECIALS.PAINTER,
     bonusPoints: POINTS.PAINTER,
     positions: [
@@ -144,11 +144,11 @@ export const getPainterLines = (row, col) => [
   },
 ];
 
-// Lines: Priority 2: Color Bombs
+// Lines: Color Bombs
 export const getBombLines = (row, col) => [
   // Color Bomb (Horizontal)
   {
-    priority: 2,
+    priority: PRIORITIES.BOMB,
     special: SPECIALS.BOMB,
     bonusPoints: POINTS.BOMB,
     positions: [
@@ -161,7 +161,7 @@ export const getBombLines = (row, col) => [
   },
   // Color Bomb (Vertical)
   {
-    priority: 2,
+    priority: PRIORITIES.BOMB,
     special: SPECIALS.BOMB,
     bonusPoints: POINTS.BOMB,
     positions: [
@@ -174,11 +174,11 @@ export const getBombLines = (row, col) => [
   },
 ];
 
-// Lines: Priority 3: Wrapped
+// Lines: Wrapped
 export const getWrappedLines = (row, col) => [
   // Wrapped Candy (Corner, pointing UP_LEFT)
   {
-    priority: 3,
+    priority: PRIORITIES.WRAPPED,
     special: SPECIALS.WRAPPED,
     bonusPoints: POINTS.WRAPPED,
     positions: [
@@ -191,7 +191,7 @@ export const getWrappedLines = (row, col) => [
   },
   // Wrapped Candy (Corner, pointing UP_RIGHT)
   {
-    priority: 3,
+    priority: PRIORITIES.WRAPPED,
     special: SPECIALS.WRAPPED,
     bonusPoints: POINTS.WRAPPED,
     positions: [
@@ -204,7 +204,7 @@ export const getWrappedLines = (row, col) => [
   },
   // Wrapped Candy (Corner, pointing DOWN_RIGHT)
   {
-    priority: 3,
+    priority: PRIORITIES.WRAPPED,
     special: SPECIALS.WRAPPED,
     bonusPoints: POINTS.WRAPPED,
     positions: [
@@ -217,7 +217,7 @@ export const getWrappedLines = (row, col) => [
   },
   // Wrapped Candy (Corner, pointing DOWN_LEFT)
   {
-    priority: 3,
+    priority: PRIORITIES.WRAPPED,
     special: SPECIALS.WRAPPED,
     bonusPoints: POINTS.WRAPPED,
     positions: [
@@ -230,7 +230,7 @@ export const getWrappedLines = (row, col) => [
   },
   // Wrapped Candy (Middle, pointing UP)
   {
-    priority: 3,
+    priority: PRIORITIES.WRAPPED,
     special: SPECIALS.WRAPPED,
     bonusPoints: POINTS.WRAPPED,
     positions: [
@@ -243,7 +243,7 @@ export const getWrappedLines = (row, col) => [
   },
   // Wrapped Candy (Middle, pointing RIGHT)
   {
-    priority: 3,
+    priority: PRIORITIES.WRAPPED,
     special: SPECIALS.WRAPPED,
     bonusPoints: POINTS.WRAPPED,
     positions: [
@@ -256,7 +256,7 @@ export const getWrappedLines = (row, col) => [
   },
   // Wrapped Candy (Middle, pointing DOWN)
   {
-    priority: 3,
+    priority: PRIORITIES.WRAPPED,
     special: SPECIALS.WRAPPED,
     bonusPoints: POINTS.WRAPPED,
     positions: [
@@ -269,7 +269,7 @@ export const getWrappedLines = (row, col) => [
   },
   // Wrapped Candy (Middle, pointing LEFT)
   {
-    priority: 3,
+    priority: PRIORITIES.WRAPPED,
     special: SPECIALS.WRAPPED,
     bonusPoints: POINTS.WRAPPED,
     positions: [
@@ -282,11 +282,11 @@ export const getWrappedLines = (row, col) => [
   },
 ];
 
-// Lines: Priority 4: Striped
+// Lines: Striped
 export const getStripedLines = (row, col) => [
   // Striped Candy (Horizontal)
   {
-    priority: 4,
+    priority: PRIORITIES.STRIPED,
     special: SPECIALS.STRIPED_V,
     bonusPoints: POINTS.STRIPED,
     positions: [
@@ -298,7 +298,7 @@ export const getStripedLines = (row, col) => [
   },
   // Striped Candy (Vertical)
   {
-    priority: 4,
+    priority: PRIORITIES.STRIPED,
     special: SPECIALS.STRIPED_H,
     bonusPoints: POINTS.STRIPED,
     positions: [
@@ -310,11 +310,11 @@ export const getStripedLines = (row, col) => [
   },
 ];
 
-// Lines: Priority 5: Fish
+// Lines: Fish
 export const getFishLines = (row, col) => [
   // Fish (With 1 extra UP_LEFT)
   {
-    priority: 5,
+    priority: PRIORITIES.FISH,
     special: SPECIALS.FISH,
     bonusPoints: POINTS.FISH,
     positions: [
@@ -327,7 +327,7 @@ export const getFishLines = (row, col) => [
   },
   // Fish (With 1 extra UP_RIGHT)
   {
-    priority: 5,
+    priority: PRIORITIES.FISH,
     special: SPECIALS.FISH,
     bonusPoints: POINTS.FISH,
     positions: [
@@ -340,7 +340,7 @@ export const getFishLines = (row, col) => [
   },
   // Fish (With 1 extra RIGHT_UP)
   {
-    priority: 5,
+    priority: PRIORITIES.FISH,
     special: SPECIALS.FISH,
     bonusPoints: POINTS.FISH,
     positions: [
@@ -353,7 +353,7 @@ export const getFishLines = (row, col) => [
   },
   // Fish (With 1 extra RIGHT_DOWN)
   {
-    priority: 5,
+    priority: PRIORITIES.FISH,
     special: SPECIALS.FISH,
     bonusPoints: POINTS.FISH,
     positions: [
@@ -366,7 +366,7 @@ export const getFishLines = (row, col) => [
   },
   // Fish (With 1 extra DOWN_RIGHT)
   {
-    priority: 5,
+    priority: PRIORITIES.FISH,
     special: SPECIALS.FISH,
     bonusPoints: POINTS.FISH,
     positions: [
@@ -379,7 +379,7 @@ export const getFishLines = (row, col) => [
   },
   // Fish (With 1 extra DOWN_LEFT)
   {
-    priority: 5,
+    priority: PRIORITIES.FISH,
     special: SPECIALS.FISH,
     bonusPoints: POINTS.FISH,
     positions: [
@@ -392,7 +392,7 @@ export const getFishLines = (row, col) => [
   },
   // Fish (With 1 extra LEFT_DOWN)
   {
-    priority: 5,
+    priority: PRIORITIES.FISH,
     special: SPECIALS.FISH,
     bonusPoints: POINTS.FISH,
     positions: [
@@ -405,7 +405,7 @@ export const getFishLines = (row, col) => [
   },
   // Fish (With 1 extra LEFT_UP)
   {
-    priority: 5,
+    priority: PRIORITIES.FISH,
     special: SPECIALS.FISH,
     bonusPoints: POINTS.FISH,
     positions: [
@@ -418,7 +418,7 @@ export const getFishLines = (row, col) => [
   },
   // Fish (Normal)
   {
-    priority: 5,
+    priority: PRIORITIES.FISH,
     special: SPECIALS.FISH,
     bonusPoints: POINTS.FISH,
     positions: [
@@ -430,11 +430,11 @@ export const getFishLines = (row, col) => [
   },
 ];
 
-// Lines: Priority 9: Normal
+// Lines: Normal
 export const getNormalLines = (row, col) => [
   // Normal (Horizontal)
   {
-    priority: 9,
+    priority: PRIORITIES.NONE,
     special: SPECIALS.NONE,
     bonusPoints: POINTS.NONE,
     positions: [
@@ -445,7 +445,7 @@ export const getNormalLines = (row, col) => [
   },
   // Normal (Vertical)
   {
-    priority: 9,
+    priority: PRIORITIES.NONE,
     special: SPECIALS.NONE,
     bonusPoints: POINTS.NONE,
     positions: [
