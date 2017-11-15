@@ -49,6 +49,7 @@ export default {
       matches: null,
       moves: null,
       selection: { selected: false, row: null, col: null, neighbors: [] },
+      lastSwap: { active: false, row1: null, col1: null, row2: null, col2: null },
       suggestion: { suggested: false, row1: null, col1: null, row2: null, col2: null },
       suggestionTimer: null,
     };
@@ -232,6 +233,11 @@ export default {
     // Clears the tile selection
     clearSelection() {
       this.selection = { selected: false, row: null, col: null, neighbors: [] };
+    },
+
+    // Clears the last tile selection
+    clearLastSwap() {
+      this.lastSwap = { active: false, row1: null, col1: null, row2: null, col2: null };
     },
 
     // Gives a move suggestion
@@ -623,24 +629,30 @@ export default {
 
     // Set any special tiles that were created
     setSpecialTiles([ removedMatches ]) {
+      const { active, row1, col1, row2, col2 } = this.lastSwap;
+
       for (let match of removedMatches) {
-        const special = match.special;
+        const { positions, special } = match;
 
         if (special !== SPECIALS.NONE) {
-          // TODO: if this special was created directly by the user, set the
-          // tile at the swap position
-          const pos = null || match.positions[0];
-          const tile = this.getTile(pos.row, pos.col);
+          const swapPosition = positions.find(p =>
+            (p.row === row1 && p.col === col1) || (p.row === row2 && p.col === col2));
+          const position = swapPosition || positions[0];
+          const tile = this.getTile(position.row, position.col);
 
+          // Set tile properties
           tile.removed = false;
           tile.special = special;
-
+          
           // Bombs are the only type that don't have a type
           if (special === SPECIALS.BOMB) {
             tile.type = this.tileTypes.length;
           }
         }
       }
+
+      // Clear last selection
+      this.clearLastSwap();
 
       // Return promise for chaining
       return Promise.resolve(removedMatches);
@@ -820,6 +832,9 @@ export default {
 
     // Attempt a tile swap
     attemptSwap(row1, col1, row2, col2) {
+      // Save last swap
+      this.lastSwap = { active: true, row1, col1, row2, col2 };
+
       // Set game status to busy
       this.setGameStatus(STATUS.BUSY)
         // Swap the two tiles

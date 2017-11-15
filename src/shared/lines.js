@@ -2,12 +2,12 @@
 import { POINTS, PRIORITIES, SPECIALS } from './constants';
 
 export const defaultLineOptions = {
-  // painters: true,
+  painters: true,
   bombs: true,
-  // wrappeds: true,
-  // stripeds: true,
-  // fishes: true,
-  // normals: true,
+  wrappeds: true,
+  stripeds: true,
+  fishes: true,
+  normals: true,
 };
 
 // All lines
