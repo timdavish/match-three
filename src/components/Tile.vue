@@ -2,7 +2,7 @@
   <div :class="['tile', `position-${tile.row}-${tile.col}`, `type-${tile.type}`]">
     <div :class="['tile-inner', { 'tile-new': isNew, 'tile-neighbor': isNeighbor, 'tile-selected': isSelected, 'tile-suggested': isSuggested }]"
       @click="$emit('touch', tile)">
-      {{ tile.special }}
+      {{ tile.special !== 'NONE' ? tile.special : '' }}
     </div>
   </div>
 </template>
