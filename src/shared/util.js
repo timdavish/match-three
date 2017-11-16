@@ -158,6 +158,13 @@ export function random(min, max) {
 }
 
 /**
+ *
+ */
+export function wait(delay) {
+  return new Promise(resolve => setTimeout(() => resolve(), delay));
+}
+
+/**
  * Delays the chaining of a promise by a specified time in milliseconds
  * @param {Number} delay The delay in milliseconds
  * @return {Promise} A promise with the resolved value from the previous step.
