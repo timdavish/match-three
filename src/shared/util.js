@@ -118,6 +118,25 @@ export function deepEqual(a, b) {
 }
 
 /**
+ * Checks two objects for equality on supplied properties
+ * @param {Object} a First value
+ * @param {Object} b First value
+ * @param {Array} props (Optional) Properties to check equality on
+ * @return {Boolean} Whether the two values are equal on the supplied properties or not
+ */
+export function equalOnProps(a, b, props = null) {
+  if (!isObject(a) || !isObject(b)) {
+    return false;
+  }
+
+  if (isBlank(props)) {
+    return deepEqual(a, b);
+  }
+
+  return props.every(p => deepEqual(a[p], b[p]));
+}
+
+/**
  * Restrict the given number between the given min and max
  * @param {Number} min Minimum value for n to be
  * @param {Number} n Value to be clamped
@@ -155,6 +174,13 @@ export function random(min, max) {
     newMin = 0;
   }
   return newMin + Math.floor(Math.random() * (newMax - newMin + 1));
+}
+
+/**
+ *
+ */
+export function wait(delay) {
+  return new Promise(resolve => setTimeout(() => resolve(), delay));
 }
 
 /**

@@ -94,10 +94,12 @@ export const TILETYPES = {
 export const TIMES = {
   ANIMATIONS: {
     // General animations
-    REMOVE: 100,
+    CREATE: 250,
+    REMOVE: 125,
+    SET_SPECIAL: 125,
     SHIFT: 250,
     SHUFFLE: 700,
-    SWAP: 300,
+    SWAP: 250,
     // Special animations
     PAINTER_MAXIMUM: 1250,
     PAINTER_MINIMUM: 750,
