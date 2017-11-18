@@ -1,7 +1,7 @@
 <template>
   <div class="board-container">
     <button class="ai-button"
-      @click="aiStatusChange">
+      @click="setAIStatus">
       {{ ai ? 'Disable' : 'Enable' }} AI
     </button>
 
@@ -341,44 +341,25 @@ export default {
       }
     },
 
-    // Remove any special tiles
-    async removeSpecials(removedSpecials) {
-      for (let removedSpecial of removedSpecials) {
-        const { row, col, special } = removedSpecial;
+    // Shuffles all available tiles
+    async shuffleTiles() {
+      const tiles = this.tiles;
+      const last = tiles.length - 1;
 
-        switch (special) {
-          case SPECIALS.PAINTER: {
-            await this.handleSpecialPainter(row, col);
-            break;
-          }
-          case SPECIALS.BOMB: {
-            await this.handleSpecialBomb(row, col);
-            break;
-          }
-          case SPECIALS.WRAPPED: {
-            await this.handleSpecialWrapped(row, col);
-            break;
-          }
-          case SPECIALS.WRAPPED_EXPLODED: {
-            await this.handleSpecialWrapped(row, col);
-            break;
-          }
-          case SPECIALS.STRIPED_H: {
-            const directions = [DIRECTIONS.LEFT, DIRECTIONS.RIGHT];
-            await this.handleSpecialStriped(row, col, directions);
-            break;
-          }
-          case SPECIALS.STRIPED_V: {
-            const directions = [DIRECTIONS.UP, DIRECTIONS.DOWN];
-            await this.handleSpecialStriped(row, col, directions);
-            break;
-          }
-          case SPECIALS.FISH: {
-            await this.handleSpecialFish(row, col);
-            break;
-          }
+      while (this.moves.length <= 0 || this.matches.length > 0) {
+        for (let index = 0; index <= last; index += 1) {
+          const rand = random(index, last);
+          const { row: row1, col: col1 } = tiles[index];
+          const { row: row2, col: col2 } = tiles[rand];
+          this.swapTiles(row1, col1, row2, col2);
         }
+
+        this.findMoves();
+        this.findMatches();
       }
+
+      // Wait for animation
+      await wait(TIMES.ANIMATIONS.SHUFFLE);
     },
 
     // Hit positions
@@ -417,39 +398,129 @@ export default {
       await this.removeSpecials(removedSpecials);
     },
 
+    // Remove any special tiles
+    async removeSpecials(specials) {
+      for (let s of specials) {
+        const { row, col, special } = s;
 
-
-    // Sets the game status
-    setGameStatus(status) {
-      this.status = status;
-    },
-
-    // Change the ai status
-    aiStatusChange() {
-      this.ai = !this.ai;
-
-      // We don't need to do anything if the board is busy
-      if (this.status === STATUS.IDLE) {
-        this.ai ? this.aiMove() : this.giveSuggestion();
+        switch (special) {
+          case SPECIALS.PAINTER:
+            await this.handleSpecialPainter(row, col);
+            break;
+          case SPECIALS.BOMB:
+            await this.handleSpecialBomb(row, col);
+            break;
+          case SPECIALS.WRAPPED:
+          case SPECIALS.WRAPPED_EXPLODED:
+            await this.handleSpecialWrapped(row, col);
+            break;
+          case SPECIALS.STRIPED_H:
+            const hDirections = [DIRECTIONS.LEFT, DIRECTIONS.RIGHT];
+            await this.handleSpecialStriped(row, col, hDirections);
+            break;
+          case SPECIALS.STRIPED_V:
+            const vDirections = [DIRECTIONS.UP, DIRECTIONS.DOWN];
+            await this.handleSpecialStriped(row, col, vDirections);
+            break;
+          case SPECIALS.FISH:
+            await this.handleSpecialFish(row, col);
+            break;
+        }
       }
     },
 
-    // Makes an ai move
-    async aiMove() {
-      // Clear selection and suggestion
-      this.clearSelection();
-      this.clearSuggestion();
+    // Handle special painter tiles
+    async handleSpecialPainter(row, col, options = {}) {
+      const { type } = options;
 
-      // 'Think' for a random amount of time
-      const thinkTime = random(TIMES.WAITS.THINK_MINIMUM, TIMES.WAITS.THINK_MAXIMUM);
-      await wait(thinkTime);
+      const painter = this.getTile(row, col);
+      const typesToPaint = [
+        isBlank(type) || type === painter.type ? this.getRandomTileType(painter.type) : type,
+        painter.type
+      ];
+      const tilesToPaint = this.tiles.filter(tile => typesToPaint.some(t => t === tile.type));
 
-      // Make sure ai is still enabled, then attempt swap
-      if (this.ai) {
-        const { row1, col1, row2, col2 } = this.moves[0];
+      // Promise.all makes sure we wait for all the animations to finish
+      await Promise.all(tilesToPaint.map(tile => {
+        return new Promise(resolve => {
+          // Paint the tile in a random amount of time
+          const paintTime = random(TIMES.ANIMATIONS.PAINTER_MINIMUM, TIMES.ANIMATIONS.PAINTER_MAXIMUM);
 
-        return this.attemptSwap(row1, col1, row2, col2);
+          setTimeout(() => resolve(this.setTileAs(tile, { type: painter.type })), paintTime);
+        });
+      }));
+
+      this.removeTile(painter);
+    },
+
+    // Handle special bomb tiles
+    async handleSpecialBomb(row, col, options = {}) {
+      const { type } = options;
+
+      const bomb = this.getTile(row, col);
+      const typeToBomb = isBlank(type) ? this.getRandomTileType() : type;
+      const tilesToBomb = this.tiles.filter(tile => tile.type === typeToBomb);
+      const targets = tilesToBomb.map(t => this.getPosition(t.row, t.col));
+
+      // Promise.all makes sure we wait for all the animations to finish
+      await Promise.all(targets.map(position => {
+        return new Promise(resolve => {
+          const bombTime = random(TIMES.ANIMATIONS.BOMB_MINIMUM, TIMES.ANIMATIONS.BOMB_MAXIMUM);
+
+          setTimeout(() => resolve(this.hitPositions([position])), bombTime);
+        });
+      }));
+
+      this.removeTile(bomb);
+    },
+
+    // Handle special wrapped tiles
+    async handleSpecialWrapped(row, col, exploded = false) {
+      const neighbors = this.getValidNeighbors(row, col, true);
+
+      this.hitPositions(neighbors);
+
+      // Wait for animation
+      await wait(TIMES.ANIMATIONS.WRAPPED);
+    },
+
+    // Handle special striped tiles
+    async handleSpecialStriped(row, col, directions) {
+      // Get and filter positions in directions that we need to hit next
+      const filteredCoords = directions.map(direction => {
+        const coords = this.getCoordinatesInDirection(row, col, direction);
+        return { ...coords, direction };
+      }).filter(c => this.withinBoard(c.row, c.col));
+
+      // Save this position
+      const positionCopy = this.getPosition(row, col);
+      this.hitPositions([positionCopy]);
+
+      // Promise.all makes sure we wait for all the animations to finish
+      await Promise.all(filteredCoords.map(coords => {
+        const { row: nextRow, col: nextCol, direction } = coords;
+
+        return new Promise(resolve => {
+          setTimeout(() => resolve(
+            this.handleSpecialStriped(nextRow, nextCol, [direction])
+          ), TIMES.ANIMATIONS.STRIPED);
+        });
+      }));
+    },
+
+    // Handle special fish tiles
+    handleSpecialFish(row, col) {
+      let randomRow = random(this.rows - 1);
+      let randomCol = random(this.cols - 1);
+
+      // Make sure we choose a different random position
+      while (randomRow === row && randomCol === col) {
+        randomRow = random(this.rows - 1);
+        randomCol = random(this.cols - 1);
       }
+
+      const position = this.getPosition(randomRow, randomCol);
+      setTimeout(() => this.hitPositions([position]), TIMES.ANIMATIONS.FISH);
     },
 
     // Finds all current available matches
@@ -501,9 +572,9 @@ export default {
             // Check for specials
             if (!this.hasBigSpecial(tile1) && !this.hasBigSpecial(tile2)) {
               // Swap, find matches, swap back
-              this.swapTiles(row, col, row, col + 1, true);
+              this.swapTiles(row, col, row, col + 1, false);
               this.findMatches();
-              this.swapTiles(row, col, row, col + 1, true);
+              this.swapTiles(row, col, row, col + 1, false);
               // Check if the swap made a match
               if (this.matches.length > 0) {
                 // Found at least one valid move
@@ -536,9 +607,9 @@ export default {
             // Check for specials
             if (!this.hasBigSpecial(tile1) && !this.hasBigSpecial(tile2)) {
               // Swap, find matches, swap back
-              this.swapTiles(row, col, row + 1, col, true);
+              this.swapTiles(row, col, row + 1, col, false);
               this.findMatches();
-              this.swapTiles(row, col, row + 1, col, true);
+              this.swapTiles(row, col, row + 1, col, false);
               // Check if the swap made a match
               if (this.matches.length > 0) {
                 // Found at least one valid move
@@ -595,114 +666,25 @@ export default {
       return Promise.resolve();
     },
 
-    // Handle special painter tiles
-    handleSpecialPainter(row, col, options = {}) {
-      const { type } = options;
+    // Makes an ai move
+    async aiMove() {
+      // Clear selection and suggestion
+      this.clearSelection();
+      this.clearSuggestion();
 
-      const painter = this.getTile(row, col);
-      const typeToPaint = isBlank(type) || type === painter.type
-        ? this.getRandomTileType(painter.type)
-        : type;
-      const tilesToPaint = this.tiles.filter(tile => tile.type === typeToPaint);
+      // 'Think' for a random amount of time
+      const thinkTime = random(TIMES.WAITS.THINK_MINIMUM, TIMES.WAITS.THINK_MAXIMUM);
+      await wait(thinkTime);
 
-      return Promise.all([
-        ...tilesToPaint.map(tile => {
-          return new Promise(resolve => {
-            // Paint the tile in a random amount of time
-            const paintTime = random(TIMES.ANIMATIONS.PAINTER_MINIMUM, TIMES.ANIMATIONS.PAINTER_MAXIMUM);
+      // Make sure ai is still enabled, then attempt swap
+      if (this.ai) {
+        const { row1, col1, row2, col2 } = this.moves[0];
 
-            setTimeout(() => resolve(this.setTileAs(tile, { type: painter.type })), paintTime);
-          });
-        }),
-      ]).then(this.removeTile(painter));
-    },
-
-    // Handle special bomb tiles
-    handleSpecialBomb(row, col, options = {}) {
-      const { type } = options;
-
-      const bomb = this.getTile(row, col);
-      const typeToBomb = isBlank(type)
-        ? this.getRandomTileType()
-        : type;
-      const tilesToBomb = this.tiles.filter(tile => tile.type === typeToBomb);
-
-      return Promise.all([
-        ...tilesToBomb.map(tile => {
-          return new Promise(resolve => {
-            // Bomb the tile in a random amount of time
-            const bombTime = random(TIMES.ANIMATIONS.BOMB_MINIMUM, TIMES.ANIMATIONS.BOMB_MAXIMUM);
-
-            setTimeout(() => resolve(this.removeTile(tile)), bombTime);
-          });
-        }),
-      ]).then(this.removeTile(bomb));
-    },
-
-    // Handle special wrapped tiles
-    async handleSpecialWrapped(row, col, exploded = false) {
-      const neighbors = this.getValidNeighbors(row, col, true);
-
-      this.hitPositions(neighbors);
-
-      // Wait for animation
-      await wait(TIMES.ANIMATIONS.WRAPPED);
-    },
-
-    // Handle special striped tiles
-    handleSpecialStriped(row, col, directions) {
-      // Get and filter positions in directions that we need to hit next
-      const filteredCoords = directions.map(direction => {
-        const coords = this.getCoordinatesInDirection(row, col, direction);
-        return { ...coords, direction };
-      }).filter(c => this.withinBoard(c.row, c.col));
-
-      // Save this position
-      const positionCopy = deepCopy(this.getPosition(row, col));
-
-      // Promise.all makes sure we wait for all the animations to finish
-      return Promise.all([
-        // Hit this position and check for chain reactions
-        this.hitPositions([positionCopy]),
-        // Recurse to more positions if there are any
-        ...filteredCoords.map(coords => {
-          const { row: nextRow, col: nextCol, direction } = coords;
-
-          return new Promise(resolve => {
-            setTimeout(() => resolve(
-              this.handleSpecialStriped(nextRow, nextCol, [direction])
-            ), TIMES.ANIMATIONS.STRIPED);
-          });
-        }),
-      ]);
-    },
-
-    // Handle special fish tiles
-    handleSpecialFish(row, col) {
-      // Promise makes sure we wait for all the animations to finish
-      return new Promise(resolve => {
-        let randomRow = random(this.rows - 1);
-        let randomCol = random(this.cols - 1);
-
-        // Make sure we choose a different random position
-        while (randomRow === row && randomCol === col) {
-          randomRow = random(this.rows - 1);
-          randomCol = random(this.cols - 1);
-        }
-
-        setTimeout(() => {
-          // Save this position
-          const positionCopy = deepCopy(this.getPosition(randomRow, randomCol));
-          resolve(
-            // Hit this position and check for chain reactions
-            this.hitPositions([positionCopy])
-          );
-        }, TIMES.ANIMATIONS.FISH);
-      });
+        return this.attemptSwap(row1, col1, row2, col2);
+      }
     },
 
     // Handles a board touch
-    // Animation timing: SWAP
     tileTouch(tile) {
       // Only allow tile touches while game is idle
       if (this.status === STATUS.IDLE) {
@@ -740,69 +722,119 @@ export default {
     },
 
     // Attempt a tile swap
-    attemptSwap(row1, col1, row2, col2) {
-      // Save last swap
+    async attemptSwap(row1, col1, row2, col2) {
+      this.setGameStatus(STATUS.BUSY);
       this.lastSwap = { active: true, row1, col1, row2, col2 };
 
-      // Set game status to busy
-      this.setGameStatus(STATUS.BUSY);
-        // Swap the two tiles
-      this.swapTiles(row1, col1, row2, col2)
-        // Check if this is a move that makes a match
-        .then(() => {
-          if (this.validMove(row1, col1, row2, col2)) {
-            // Decrement moves and run the game loop
-            this.addMoves();
+      await this.swapTiles(row1, col1, row2, col2);
 
-            const tile1 = this.getTile(row1, col1);
-            const tile2 = this.getTile(row2, col2);
-            const special1 = tile1.special;
-            const special2 = tile2.special;
+      // Check if this is a valid move
+      if (!this.validMove(row1, col1, row2, col2)) {
+        // Swap back
+        await this.swapTiles(row1, col1, row2, col2);
+        this.setGameStatus(STATUS.IDLE);
+      } else {
+        this.addMoves(-1);
 
-            // Check what kind of tiles we're swapping
-            if (this.isPainterBombSwap(special1, special2)) {
-             // Painter with a bomb
-             return this.handlePainterBombSwap(tile1, tile2);
+        const tile1 = this.getTile(row1, col1);
+        const tile2 = this.getTile(row2, col2);
+        const special1 = tile1.special;
+        const special2 = tile2.special;
 
-           } else if (this.isPainterPainterSwap(special1, special2)) {
-              // Painter with a painter
-              return this.handlePainterPainterSwap(tile1, tile2);
+        // Check for special kinds of swaps
+        if (this.isPainterBombSwap(special1, special2)) {
+          await this.handlePainterBombSwap(tile1, tile2);
 
-            } else if (this.isPainterOtherSwap(special1, special2)) {
-              // Painter with another special
-              return this.handlePainterOtherSwap(tile1, tile2);
+        } else if (this.isPainterPainterSwap(special1, special2)) {
+          await this.handlePainterPainterSwap(tile1, tile2,);
 
-            } else if (this.isPainterNoneSwap(special1, special2)) {
-              // Painter with a normal tile
-              return this.handlePainterNoneSwap(tile1, tile2);
+        } else if (this.isPainterOtherSwap(special1, special2)) {
+          await this.handlePainterOtherSwap(tile1, tile2);
 
-            } else if (this.isBombBombSwap(special1, special2)) {
-              // Bomb with a bomb
-              return this.handleBombBombSwap(tile1, tile2);
+        } else if (this.isPainterNoneSwap(special1, special2)) {
+          await this.handlePainterNoneSwap(tile1, tile2);
 
-            } else if (this.isBombOtherSwap(special1, special2)) {
-              // Bomb with another special
-              return this.handleBombOtherSwap(tile1, tile2);
+        } else if (this.isBombBombSwap(special1, special2)) {
+          await this.handleBombBombSwap(tile1, tile2);
 
-            } else if (this.isBombNoneSwap(special1, special2)) {
-              // Bomb with a normal tile
-              return this.handleBombNoneSwap(tile1, tile2);
+        } else if (this.isBombOtherSwap(special1, special2)) {
+          await this.handleBombOtherSwap(tile1, tile2);
 
-            } else if (this.isOtherOtherSwap(special1, special2)) {
-              // Special with another special
-              return this.handleOtherOtherSwap(tile1, tile2);
+        } else if (this.isBombNoneSwap(special1, special2)) {
+          await this.handleBombNoneSwap(tile1, tile2);
 
-            } else {
-              // Normal swap
-              return this.gameLoop();
-            }
-          } else {
-            // Set game status to idle and swap the two tiles back
-            this.setGameStatus(STATUS.IDLE);
-            return this.swapTiles(row1, col1, row2, col2);
-          }
-        });
+        } else if (this.isOtherOtherSwap(special1, special2)) {
+          await this.handleOtherOtherSwap(tile1, tile2);
+        }
+
+        // Finally, run the game loop
+        this.gameLoop();
+      }
     },
+
+    // Swaps two tiles
+    async swapTiles(row1, col1, row2, col2, animated = true) {
+      const tile1 = this.getTile(row1, col1);
+      const tile2 = this.getTile(row2, col2);
+
+      this.setTileAt(tile1, row2, col2);
+      this.setTileAt(tile2, row1, col1);
+
+      await wait(animated ? TIMES.ANIMATIONS.SWAP : 0);
+    },
+
+    // Add to the level moves
+    addMoves(moves = -1) {
+      this.$emit('addMoves', moves);
+    },
+
+    // Add points to the level score
+    addScore(points) {
+      // Add the points
+      this.$emit('addScore', points);
+    },
+
+    // Clears the last tile selection
+    clearLastSwap() {
+      this.lastSwap = { active: false, row1: null, col1: null, row2: null, col2: null };
+    },
+
+    // Clears the tile selection
+    clearSelection() {
+      this.selection = { selected: false, row: null, col: null, neighbors: [] };
+    },
+
+    // Clears the move suggestion
+    clearSuggestion() {
+      clearTimeout(this.suggestionTimer);
+      this.suggestion = { suggested: false, row1: null, col1: null, row2: null, col2: null };
+    },
+
+    // Starts a move suggestion
+    giveSuggestion() {
+      this.suggestionTimer = setTimeout(() => {
+        const { row1, col1, row2, col2 } = this.moves[0];
+        this.suggestion = { suggested: true, row1, col1, row2, col2 };
+      }, TIMES.WAITS.SUGGESTION);
+    },
+
+    // Sets the game status
+    setGameStatus(status) {
+      this.status = status;
+    },
+
+    // Sets the ai status
+    setAIStatus() {
+      this.ai = !this.ai;
+
+      // We don't need to do anything if the board is busy
+      if (this.status === STATUS.IDLE) {
+        this.ai ? this.aiMove() : this.giveSuggestion();
+      }
+    },
+
+
+
 
     isPainterBombSwap(special1, special2) {
       return (
@@ -838,7 +870,7 @@ export default {
       return special1 === SPECIALS.PAINTER || special2 === SPECIALS.PAINTER;
     },
 
-    handlePainterNoneSwap(tile1, tile2) {
+    async handlePainterNoneSwap(tile1, tile2) {
       const { row: r1, col: c1, special: s1, type: t1 } = tile1;
       const { row: r2, col: c2, special: s2, type: t2 } = tile2;
 
@@ -852,11 +884,7 @@ export default {
         options.type = t2;
       }
 
-      return this.handleSpecialPainter(row, col, options)
-        // Then handle tile shifting
-        .then(() => this.setShifts())
-        .then((data) => this.shiftTiles(data))
-        .then(this.gameLoop);
+      await this.handleSpecialPainter(row, col, options);
     },
 
     isBombBombSwap(special1, special2) {
@@ -882,9 +910,7 @@ export default {
       return special1 === SPECIALS.BOMB || special2 === SPECIALS.BOMB;
     },
 
-    handleBombNoneSwap(tile1, tile2) {
-      console.log(tile1.special, 'swapped with', tile2.special);
-
+    async handleBombNoneSwap(tile1, tile2) {
       const { row: r1, col: c1, special: s1, type: t1 } = tile1;
       const { row: r2, col: c2, special: s2, type: t2 } = tile2;
 
@@ -898,11 +924,7 @@ export default {
         options.type = t2;
       }
 
-      return this.handleSpecialBomb(row, col, options)
-        // Then handle tile shifting
-        .then(() => this.setShifts())
-        .then((data) => this.shiftTiles(data))
-        .then(this.gameLoop);
+      await this.handleSpecialBomb(row, col, options);
     },
 
     isOtherOtherSwap(special1, special2) {
@@ -911,78 +933,6 @@ export default {
 
     handleOtherOtherSwap(tile1, tile2) {
       console.log(tile1.special, 'swapped with', tile2.special);
-    },
-
-    swapTiles(row1, col1, row2, col2, instant = false) {
-      const tile1 = this.getTile(row1, col1);
-      const tile2 = this.getTile(row2, col2);
-
-      this.setTileAt(tile1, row2, col2);
-      this.setTileAt(tile2, row1, col1);
-
-      // Return promise for chaining
-      return Promise.resolve()
-        // Wait for animation
-        .then(waitInPromise(!instant ? TIMES.ANIMATIONS.SWAP : 0));
-    },
-
-    // Add to the level moves
-    addMoves(moves = -1) {
-      this.$emit('addMoves', moves);
-    },
-
-    // Add points to the level score
-    addScore(points) {
-      // Add the points
-      this.$emit('addScore', points);
-    },
-
-
-
-    // Shuffles all available tiles
-    // Animation timing: SHUFFLE
-    async shuffleTiles() {
-      const tiles = this.tiles;
-      const last = tiles.length - 1;
-
-      while (this.moves.length <= 0 || this.matches.length > 0) {
-        for (let index = 0; index <= last; index += 1) {
-          const rand = random(index, last);
-          const { row: row1, col: col1 } = tiles[index];
-          const { row: row2, col: col2 } = tiles[rand];
-          this.swapTiles(row1, col1, row2, col2);
-        }
-
-        this.findMoves();
-        this.findMatches();
-      }
-
-      // Wait for animation
-      await wait(TIMES.ANIMATIONS.SHUFFLE);
-    },
-
-    // Clears the last tile selection
-    clearLastSwap() {
-      this.lastSwap = { active: false, row1: null, col1: null, row2: null, col2: null };
-    },
-
-    // Clears the tile selection
-    clearSelection() {
-      this.selection = { selected: false, row: null, col: null, neighbors: [] };
-    },
-
-    // Clears the move suggestion
-    clearSuggestion() {
-      clearTimeout(this.suggestionTimer);
-      this.suggestion = { suggested: false, row1: null, col1: null, row2: null, col2: null };
-    },
-
-    // Starts a move suggestion
-    giveSuggestion() {
-      this.suggestionTimer = setTimeout(() => {
-        const { row1, col1, row2, col2 } = this.moves[0];
-        this.suggestion = { suggested: true, row1, col1, row2, col2 };
-      }, TIMES.WAITS.SUGGESTION);
     },
 
     /**
@@ -1173,15 +1123,15 @@ export default {
      */
     getOppositeDirection(direction) {
       switch (direction) {
-        case (DIRECTIONS.UP_LEFT): return DIRECTIONS.DOWN_RIGHT;
-        case (DIRECTIONS.UP): return DIRECTIONS.DOWN;
-        case (DIRECTIONS.UP_RIGHT): return DIRECTIONS.DOWN_LEFT;
-        case (DIRECTIONS.RIGHT): return DIRECTIONS.LEFT;
-        case (DIRECTIONS.DOWN_RIGHT): return DIRECTIONS.UP_LEFT;
-        case (DIRECTIONS.DOWN): return DIRECTIONS.UP;
-        case (DIRECTIONS.DOWN_LEFT): return DIRECTIONS.UP_RIGHT;
-        case (DIRECTIONS.LEFT): return DIRECTIONS.RIGHT;
-        case (DIRECTIONS.NONE): return DIRECTIONS.NONE;
+        case DIRECTIONS.UP_LEFT: return DIRECTIONS.DOWN_RIGHT;
+        case DIRECTIONS.UP: return DIRECTIONS.DOWN;
+        case DIRECTIONS.UP_RIGHT: return DIRECTIONS.DOWN_LEFT;
+        case DIRECTIONS.RIGHT: return DIRECTIONS.LEFT;
+        case DIRECTIONS.DOWN_RIGHT: return DIRECTIONS.UP_LEFT;
+        case DIRECTIONS.DOWN: return DIRECTIONS.UP;
+        case DIRECTIONS.DOWN_LEFT: return DIRECTIONS.UP_RIGHT;
+        case DIRECTIONS.LEFT: return DIRECTIONS.RIGHT;
+        case DIRECTIONS.NONE: return DIRECTIONS.NONE;
         default: return direction;
       }
     },
