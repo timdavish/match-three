@@ -31,7 +31,7 @@ import Tile from './Tile';
 import PermutationException from '../exceptions/PermutationException';
 import { BLOCKERS, DIRECTIONS, POINTS, PRIORITIES, SPECIALS, STATUS, TIMES, VECTORS } from '../shared/constants';
 import { getLines } from '../shared/lines';
-import { deepCopy, equalOnProps, isBlank, random, wait, waitInPromise } from '../shared/util';
+import { deepCopy, equalOnProps, generateUid, isBlank, random, wait, waitInPromise } from '../shared/util';
 
 export default {
   name: 'Board',
@@ -65,17 +65,13 @@ export default {
   methods: {
     // Starts a new game
     newGame() {
-      const { positions, tiles: defaultTiles } = this.boardData;
-      const tileCount = defaultTiles.length;
-      const positionCount = positions.filter((p) => p.active).length;
+      const { positions, tiles } = this.boardData;
 
       // Set the board's positions
       this.positions = positions;
 
       // Set the board's tiles
-      this.tiles = tileCount === positionCount
-        ? defaultTiles
-        : this.getStartingTiles();
+      this.tiles = this.getStartingTiles(tiles);
 
       // Set other properties
       this.matches = [];
@@ -89,24 +85,26 @@ export default {
     },
 
     // Initializes new starting tiles
-    getStartingTiles() {
+    getStartingTiles(startTiles) {
       // Reset tiles
-      const tiles = [];
+      const tiles = startTiles;
 
       for (let row = 0; row < this.rows; row += 1) {
         for (let col = 0; col < this.cols; col += 1) {
-          const position = this.getPosition(row, col);
+          if (!tiles.some(t => t.row === row && t.col === col)) {
+            const position = this.getPosition(row, col);
 
-          // Make sure the position can contain a tile
-          if (this.isActivePosition(position)) {
-            tiles.push({
-              id: this.coordinatesToIndex({ row, col }),
-              row, col,
-              type: this.getRandomTileType(),
-              special: SPECIALS.NONE,
-              shifts: [],
-              removed: false
-            });
+            // Make sure the position can contain a tile
+            if (this.isActivePosition(position)) {
+              tiles.push({
+                id: generateUid(),
+                row, col,
+                type: this.getRandomTileType(),
+                special: SPECIALS.NONE,
+                shifts: [],
+                removed: false
+              });
+            }
           }
         }
       }
@@ -222,7 +220,12 @@ export default {
       for (let newSpecial of newSpecials) {
         const { positions, special } = newSpecial;
 
-        const swapPosition = positions.find(p => (p.row === row1 && p.col === col1) || (p.row === row2 && p.col === col2));
+        const swapPosition = positions.find(p => {
+          const t = this.getTile(p.row, p.col);
+          return (
+            t.special === SPECIALS.NONE && ((p.row === row1 && p.col === col1) || (p.row === row2 && p.col === col2))
+          );
+        });
         const position = swapPosition || getOpenPosition(positions);
         const tile = this.getTile(position.row, position.col);
 
@@ -260,7 +263,7 @@ export default {
           const tile = this.getTile(row, col);
           const newShift = this.getOppositeDirection(feedDirection);
 
-          if (tile.removed) {
+          if (tile && tile.removed) {
             haveShifts = true;
 
             // Add new shift
@@ -375,10 +378,11 @@ export default {
         } else {
           // Make sure there is a tile to hit
           const tile = this.getTile(position.row, position.col);
-          const tileCopy = deepCopy(tile);
-          const special = tile.special;
 
-          if (tile && special && (special !== SPECIALS.WRAPPED_EXPLODED || explodeds)) {
+          if (tile && tile.special && (explodeds || tile.special !== SPECIALS.WRAPPED_EXPLODED)) {
+            const tileCopy = deepCopy(tile);
+            const special = tile.special;
+
             if (!tile.removed) {
               this.removeTile(tile);
             }
@@ -510,16 +514,17 @@ export default {
 
     // Handle special fish tiles
     handleSpecialFish(row, col) {
-      let randomRow = random(this.rows - 1);
-      let randomCol = random(this.cols - 1);
+      let randomRow;
+      let randomCol;
+      let position;
 
       // Make sure we choose a different random position
-      while (randomRow === row && randomCol === col) {
+      do {
         randomRow = random(this.rows - 1);
         randomCol = random(this.cols - 1);
-      }
+        position = this.getPosition(randomRow, randomCol);
+      } while ((randomRow === row && randomCol === col) || !position.active)
 
-      const position = this.getPosition(randomRow, randomCol);
       setTimeout(() => this.hitPositions([position]), TIMES.ANIMATIONS.FISH);
     },
 
@@ -530,13 +535,11 @@ export default {
 
       // Calculate best match for each board position
       this.positions.forEach((p) => {
-        const { row, col, active } = p;
+        const { row, col } = p;
 
-        if (active) {
-          const match = this.calculateBestMatch(row, col);
-          if (match !== null) {
-            matches.push(match);
-          }
+        const match = this.calculateBestMatch(row, col);
+        if (match !== null) {
+          matches.push(match);
         }
       });
 
@@ -843,8 +846,16 @@ export default {
       );
     },
 
-    handlePainterBombSwap(tile1, tile2) {
+    async handlePainterBombSwap(tile1, tile2) {
       console.log(tile1.special, 'swapped with', tile2.special);
+      const times = 3;
+      const targets = this.positions;
+
+      for (let time = 1; time <= times; time += 1) {
+        this.hitPositions(targets);
+      }
+
+      await wait(500);
     },
 
     isPainterPainterSwap(special1, special2) {

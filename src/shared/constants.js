@@ -107,7 +107,7 @@ export const TIMES = {
     BOMB_MINIMUM: 750,
     WRAPPED: 100,
     STRIPED: 100,
-    FISH: 100,
+    FISH: 350,
   },
   WAITS: {
     SUGGESTION: 10000,
