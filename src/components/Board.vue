@@ -435,13 +435,11 @@ export default {
 
     // Handle special painter tiles
     async handleSpecialPainter(row, col, options = {}) {
-      const { type } = options;
+      const { special, types } = options;
 
       const painter = this.getTile(row, col);
-      const typesToPaint = [
-        isBlank(type) || type === painter.type ? this.getRandomTileType(painter.type) : type,
-        painter.type
-      ];
+      const type = painter.type;
+      const typesToPaint = types || [painter.type, this.getRandomTileType(painter.type)];
       const tilesToPaint = this.tiles.filter(tile => typesToPaint.some(t => t === tile.type));
 
       // Promise.all makes sure we wait for all the animations to finish
@@ -450,11 +448,13 @@ export default {
           // Paint the tile in a random amount of time
           const paintTime = random(TIMES.ANIMATIONS.PAINTER_MINIMUM, TIMES.ANIMATIONS.PAINTER_MAXIMUM);
 
-          setTimeout(() => resolve(this.setTileAs(tile, { type: painter.type })), paintTime);
+          setTimeout(() => resolve(this.setTileAs(tile, { special, type })), paintTime);
         });
       }));
 
       this.removeTile(painter);
+
+      return tilesToPaint;
     },
 
     // Handle special bomb tiles
@@ -837,8 +837,7 @@ export default {
     },
 
 
-
-
+    //
     isPainterBombSwap(special1, special2) {
       return (
         (special1 === SPECIALS.PAINTER && special2 === SPECIALS.BOMB) ||
@@ -846,26 +845,42 @@ export default {
       );
     },
 
+    //
     async handlePainterBombSwap(tile1, tile2) {
-      console.log(tile1.special, 'swapped with', tile2.special);
+      // Hit every position 3 times
       const times = 3;
       const targets = this.positions;
+
+      this.removeTile(tile1);
+      this.removeTile(tile2);
 
       for (let time = 1; time <= times; time += 1) {
         this.hitPositions(targets);
       }
 
-      await wait(500);
+      await wait(TIMES.ANIMATIONS.PAINTER_BOMB);
     },
 
+    //
     isPainterPainterSwap(special1, special2) {
       return special1 === SPECIALS.PAINTER && special2 === SPECIALS.PAINTER;
     },
 
-    handlePainterPainterSwap(tile1, tile2) {
-      console.log(tile1.special, 'swapped with', tile2.special);
+    //
+    async handlePainterPainterSwap(tile1, tile2) {
+      const { row: r1, col: c1, special: s1, type: t1 } = tile1;
+      const { row: r2, col: c2, special: s2, type: t2 } = tile2;
+
+      const painterRow = s1 === SPECIALS.PAINTER ? r1 : r2;
+      const painterCol = s1 === SPECIALS.PAINTER ? c1 : c2;
+      const types = this.tileTypes;
+
+      const options = { types };
+
+      await this.handleSpecialPainter(painterRow, painterCol, options);
     },
 
+    //
     isPainterOtherSwap(special1, special2) {
       return (
         (special1 === SPECIALS.PAINTER && special2 !== SPECIALS.NONE) ||
@@ -873,38 +888,62 @@ export default {
       );
     },
 
-    handlePainterOtherSwap(tile1, tile2) {
-      console.log(tile1.special, 'swapped with', tile2.special);
+    //
+    async handlePainterOtherSwap(tile1, tile2) {
+      const { row: r1, col: c1, special: s1, type: t1 } = tile1;
+      const { row: r2, col: c2, special: s2, type: t2 } = tile2;
+
+      const painterRow = s1 === SPECIALS.PAINTER ? r1 : r2;
+      const painterCol = s1 === SPECIALS.PAINTER ? c1 : c2;
+      const special = s1 === SPECIALS.PAINTER ? s2 : s1;
+      const types = [t1, t2];
+
+      const options = { special, types };
+
+      const targets = await this.handleSpecialPainter(painterRow, painterCol, options);
+
+      this.hitPositions(targets);
     },
 
+    //
     isPainterNoneSwap(special1, special2) {
       return special1 === SPECIALS.PAINTER || special2 === SPECIALS.PAINTER;
     },
 
+    //
     async handlePainterNoneSwap(tile1, tile2) {
       const { row: r1, col: c1, special: s1, type: t1 } = tile1;
       const { row: r2, col: c2, special: s2, type: t2 } = tile2;
 
-      let row = r2;
-      let col = c2;
-      let options = { type: t1 };
+      const painterRow = s1 === SPECIALS.PAINTER ? r1 : r2;
+      const painterCol = s1 === SPECIALS.PAINTER ? c1 : c2;
+      const types = [t1, t2];
 
-      if (s1 === SPECIALS.PAINTER) {
-        row = r1;
-        col = c1;
-        options.type = t2;
-      }
+      const options = { types };
 
-      await this.handleSpecialPainter(row, col, options);
+      await this.handleSpecialPainter(painterRow, painterCol, options);
     },
 
+    //
     isBombBombSwap(special1, special2) {
       return special1 === SPECIALS.BOMB && special2 === SPECIALS.BOMB;
     },
 
-    handleBombBombSwap(tile1, tile2) {
-      console.log(tile1.special, 'swapped with', tile2.special);
+    //
+    async handleBombBombSwap(tile1, tile2) {
+      // Hit every position once
+      const targets = this.positions;
+
+      this.removeTile(tile1);
+      this.removeTile(tile2);
+
+      this.hitPositions(targets);
+
+      await wait(TIMES.ANIMATIONS.BOMB_BOMB);
     },
+
+
+
 
     isBombOtherSwap(special1, special2) {
       return (

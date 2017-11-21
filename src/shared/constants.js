@@ -83,12 +83,12 @@ export const PRIORITIES = {
 };
 
 export const TILETYPES = {
-  BLUE: 'BLUE',
-  GREEN: 'GREEN',
-  ORANGE: 'ORANGE',
-  PURPLE: 'PURPLE',
-  RED: 'RED',
-  YELLOW: 'YELLOW',
+  BLUE: 3,
+  GREEN: 2,
+  ORANGE: 1,
+  PURPLE: 4,
+  RED: 0,
+  YELLOW: 5,
 };
 
 export const TIMES = {
@@ -108,6 +108,9 @@ export const TIMES = {
     WRAPPED: 100,
     STRIPED: 100,
     FISH: 350,
+    // Special combinations
+    PAINTER_BOMB: 1000,
+    BOMB_BOMB: 1000,
   },
   WAITS: {
     SUGGESTION: 10000,
