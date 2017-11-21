@@ -369,6 +369,7 @@ export default {
     async hitPositions(positions, explodeds = false) {
       const removedSpecials = [];
       for (let position of positions) {
+        // Allow for tiles to be passed in
         if (!position.blocker) {
           position = this.getPosition(position.row, position.col);
         }
@@ -444,34 +445,38 @@ export default {
 
       // Promise.all makes sure we wait for all the animations to finish
       await Promise.all(tilesToPaint.map(tile => {
-        return new Promise(resolve => {
-          // Paint the tile in a random amount of time
-          const paintTime = random(TIMES.ANIMATIONS.PAINTER_MINIMUM, TIMES.ANIMATIONS.PAINTER_MAXIMUM);
+        const paintTime = random(TIMES.ANIMATIONS.PAINTER_MINIMUM, TIMES.ANIMATIONS.PAINTER_MAXIMUM);
 
+        return new Promise(resolve => {
           setTimeout(() => resolve(this.setTileAs(tile, { special, type })), paintTime);
         });
       }));
 
       this.removeTile(painter);
 
-      return tilesToPaint;
+      if (special !== SPECIALS.NONE) {
+        await this.hitPositions(tilesToPaint);
+      }
     },
 
     // Handle special bomb tiles
     async handleSpecialBomb(row, col, options = {}) {
-      const { type } = options;
+      const { special, type } = options;
 
       const bomb = this.getTile(row, col);
       const typeToBomb = isBlank(type) ? this.getRandomTileType() : type;
       const tilesToBomb = this.tiles.filter(tile => tile.type === typeToBomb);
-      const targets = tilesToBomb.map(t => this.getPosition(t.row, t.col));
 
       // Promise.all makes sure we wait for all the animations to finish
-      await Promise.all(targets.map(position => {
-        return new Promise(resolve => {
-          const bombTime = random(TIMES.ANIMATIONS.BOMB_MINIMUM, TIMES.ANIMATIONS.BOMB_MAXIMUM);
+      await Promise.all(tilesToBomb.map(tile => {
+        const bombTime = random(TIMES.ANIMATIONS.BOMB_MINIMUM, TIMES.ANIMATIONS.BOMB_MAXIMUM);
 
-          setTimeout(() => resolve(this.hitPositions([position])), bombTime);
+        if (special !== SPECIALS.NONE && tile.special === SPECIALS.NONE) {
+          this.setTileAs(tile, { special });
+        }
+
+        return new Promise(resolve => {
+          setTimeout(() => resolve(this.hitPositions([tile])), bombTime);
         });
       }));
 
@@ -836,7 +841,6 @@ export default {
       }
     },
 
-
     //
     isPainterBombSwap(special1, special2) {
       return (
@@ -900,9 +904,7 @@ export default {
 
       const options = { special, types };
 
-      const targets = await this.handleSpecialPainter(painterRow, painterCol, options);
-
-      this.hitPositions(targets);
+      await this.handleSpecialPainter(painterRow, painterCol, options);
     },
 
     //
@@ -917,9 +919,10 @@ export default {
 
       const painterRow = s1 === SPECIALS.PAINTER ? r1 : r2;
       const painterCol = s1 === SPECIALS.PAINTER ? c1 : c2;
+      const special = s1 === SPECIALS.PAINTER ? s2 : s1;
       const types = [t1, t2];
 
-      const options = { types };
+      const options = { special, types };
 
       await this.handleSpecialPainter(painterRow, painterCol, options);
     },
@@ -942,9 +945,7 @@ export default {
       await wait(TIMES.ANIMATIONS.BOMB_BOMB);
     },
 
-
-
-
+    //
     isBombOtherSwap(special1, special2) {
       return (
         (special1 === SPECIALS.BOMB && special2 !== SPECIALS.NONE) ||
@@ -952,30 +953,42 @@ export default {
       );
     },
 
-    handleBombOtherSwap(tile1, tile2) {
-      console.log(tile1.special, 'swapped with', tile2.special);
+    //
+    async handleBombOtherSwap(tile1, tile2) {
+      const { row: r1, col: c1, special: s1, type: t1 } = tile1;
+      const { row: r2, col: c2, special: s2, type: t2 } = tile2;
+
+      const bombRow = s1 === SPECIALS.BOMB ? r1 : r2;
+      const bombCol = s1 === SPECIALS.BOMB ? c1 : c2;
+      const special = s1 === SPECIALS.BOMB ? s2 : s1;
+      const type = s1 === SPECIALS.BOMB ? t2 : t1;
+
+      const options = { special, type };
+
+      await this.handleSpecialBomb(bombRow, bombCol, options);
     },
 
+    //
     isBombNoneSwap(special1, special2) {
       return special1 === SPECIALS.BOMB || special2 === SPECIALS.BOMB;
     },
 
+    //
     async handleBombNoneSwap(tile1, tile2) {
       const { row: r1, col: c1, special: s1, type: t1 } = tile1;
       const { row: r2, col: c2, special: s2, type: t2 } = tile2;
 
-      let row = r2;
-      let col = c2;
-      let options = { type: t1 };
+      const bombRow = s1 === SPECIALS.BOMB ? r1 : r2;
+      const bombCol = s1 === SPECIALS.BOMB ? c1 : c2;
+      const special = s1 === SPECIALS.BOMB ? s2 : s1;
+      const type = s1 === SPECIALS.BOMB ? t2 : t1;
 
-      if (s1 === SPECIALS.BOMB) {
-        row = r1;
-        col = c1;
-        options.type = t2;
-      }
+      const options = { special, type };
 
-      await this.handleSpecialBomb(row, col, options);
+      await this.handleSpecialBomb(bombRow, bombCol, options);
     },
+
+
 
     isOtherOtherSwap(special1, special2) {
       return special1 !== SPECIALS.NONE && special2 !== SPECIALS.NONE;
@@ -1007,10 +1020,12 @@ export default {
       return randomType;
     },
 
-    setTileAs(tile, options = {}) {
+    setTileAs(tile, props = {}) {
       return new Promise(resolve => {
-        for (let option in options) {
-          tile[option] = options[option];
+        for (let prop in props) {
+          if (!isBlank(props[prop])) {
+            tile[prop] = props[prop];
+          }
         }
         resolve();
       });
