@@ -22,16 +22,13 @@ export function level() {
 
       // { id, row, col, type, shifts }
       tiles: [
-        // Row 1
-        { id: generateUid(), row: 3, col: 0, type: 1, special: SPECIALS.NONE, shifts: [], removed: false },
-        { id: generateUid(), row: 3, col: 1, type: 0, special: SPECIALS.NONE, shifts: [], removed: false },
-        { id: generateUid(), row: 3, col: 2, type: 1, special: SPECIALS.NONE, shifts: [], removed: false },
-        { id: generateUid(), row: 3, col: 3, type: 1, special: SPECIALS.NONE, shifts: [], removed: false },
-        // // Row 2
+        // { id: generateUid(), row: 3, col: 0, type: 1, special: SPECIALS.PAINTER, shifts: [], removed: false },
+        // { id: generateUid(), row: 3, col: 1, type: 0, special: SPECIALS.PAINTER, shifts: [], removed: false },
+        // { id: generateUid(), row: 3, col: 2, type: 1, special: SPECIALS.NONE, shifts: [], removed: false },
+        // { id: generateUid(), row: 4, col: 3, type: 1, special: SPECIALS.NONE, shifts: [], removed: false },
         // { id: generateUid(), row: 1, col: 0, type: 0, special: SPECIALS.NONE, shifts: [], removed: false },
-        { id: generateUid(), row: 4, col: 1, type: 1, special: SPECIALS.STRIPED_V, shifts: [], removed: false },
+        // { id: generateUid(), row: 4, col: 1, type: 1, special: SPECIALS.STRIPED_V, shifts: [], removed: false },
         // { id: generateUid(), row: 1, col: 2, type: 1, special: SPECIALS.NONE, shifts: [], removed: false },
-        // // Row 3
         // { id: generateUid(), row: 2, col: 0, type: 0, special: SPECIALS.WRAPPED, shifts: [], removed: false },
         // { id: generateUid(), row: 2, col: 1, type: 1, special: SPECIALS.NONE, shifts: [], removed: false },
         // { id: generateUid(), row: 2, col: 2, type: 2, special: SPECIALS.NONE, shifts: [], removed: false },
