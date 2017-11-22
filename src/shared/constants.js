@@ -82,6 +82,25 @@ export const PRIORITIES = {
   NONE: 9,
 };
 
+export const SPECIALS = {
+  // Creatable
+  PAINTER: 'PAINTER',
+  BOMB: 'BOMB',
+  WRAPPED: 'WRAPPED',
+  WRAPPED_EXPLODED: 'WRAPPED_EXPLODED',
+  STRIPED_H: 'STRIPED H',
+  STRIPED_V: 'STRIPED V',
+  FISH: 'FISH',
+  NONE: 'NONE',
+  // Not Creatable
+  SODA: 'SODA',
+};
+
+export const STATUS = {
+  BUSY: 'BUSY',
+  IDLE: 'IDLE',
+};
+
 export const TILETYPES = {
   BLUE: 3,
   GREEN: 2,
@@ -117,25 +136,6 @@ export const TIMES = {
     THINK_MAXIMUM: 1000,
     THINK_MINIMUM: 500,
   },
-};
-
-export const SPECIALS = {
-  // Creatable
-  PAINTER: 'PAINTER',
-  BOMB: 'BOMB',
-  WRAPPED: 'WRAPPED',
-  WRAPPED_EXPLODED: 'WRAPPED_EXPLODED',
-  STRIPED_H: 'STRIPED H',
-  STRIPED_V: 'STRIPED V',
-  FISH: 'FISH',
-  NONE: 'NONE',
-  // Not Creatable
-  SODA: 'SODA',
-};
-
-export const STATUS = {
-  BUSY: 'BUSY',
-  IDLE: 'IDLE',
 };
 
 export const VECTORS = {

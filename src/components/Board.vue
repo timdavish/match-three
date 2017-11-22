@@ -501,9 +501,8 @@ export default {
         return { ...coords, direction };
       }).filter(c => this.withinBoard(c.row, c.col));
 
-      // Save this position
-      const positionCopy = this.getPosition(row, col);
-      this.hitPositions([positionCopy]);
+      const position = this.getPosition(row, col);
+      this.hitPositions([position]);
 
       // Promise.all makes sure we wait for all the animations to finish
       await Promise.all(filteredCoords.map(coords => {
@@ -518,19 +517,34 @@ export default {
     },
 
     // Handle special fish tiles
-    handleSpecialFish(row, col) {
-      let randomRow;
-      let randomCol;
-      let position;
+    handleSpecialFish(row1, col1, row2, col2, targetCount = 1) {
+      const fishLocs = [
+        { row: row1, col: col1 },
+        { row: row2, col: col2 },
+      ];
 
-      // Make sure we choose a different random position
-      do {
-        randomRow = random(this.rows - 1);
-        randomCol = random(this.cols - 1);
-        position = this.getPosition(randomRow, randomCol);
-      } while ((randomRow === row && randomCol === col) || !position.active)
+      let positions = [];
 
-      setTimeout(() => this.hitPositions([position]), TIMES.ANIMATIONS.FISH);
+      for (let fishNum = 1; fishNum <= targetCount; fishNum += 1) {
+        let randRow;
+        let randCol;
+        let position;
+
+        // Make sure we choose a different random position
+        do {
+          randRow = random(this.rows - 1);
+          randCol = random(this.cols - 1);
+          position = this.getPosition(randRow, randCol);
+        } while (
+          fishLocs.some(l => l.row === randRow && l.col == randCol) ||
+          positions.some(p => p === position) ||
+          !position.active
+        )
+
+        positions.push(position);
+      }
+
+      setTimeout(() => this.hitPositions(positions), TIMES.ANIMATIONS.FISH);
     },
 
     // Finds all current available matches
@@ -577,8 +591,17 @@ export default {
             const tile1 = this.getTile(row, col);
             const tile2 = this.getTile(row, col + 1);
 
-            // Check for specials
-            if (!this.hasBigSpecial(tile1) && !this.hasBigSpecial(tile2)) {
+            // Check for special swaps
+            if ((this.hasBigSpecial(tile1) || this.hasBigSpecial(tile1)) || (this.hasSpecial(tile1) && this.hasSpecial(tile2))) {
+              // Big specials can always be swapped with any other tile
+              // Specials can be swapped with any other special
+              const priorities = [
+                PRIORITIES[tile1.special],
+                PRIORITIES[tile2.special],
+              ];
+
+              moves.push({row1: row, col1: col, row2: row, col2: col + 1, priorities });
+            } else {
               // Swap, find matches, swap back
               this.swapTiles(row, col, row, col + 1, false);
               this.findMatches();
@@ -589,14 +612,6 @@ export default {
                 const priorities = this.matches.map(m => m.priority);
                 moves.push({ row1: row, col1: col, row2: row, col2: col + 1, priorities });
               }
-            } else {
-              // Big specials can be swapped with any tile
-              const priorities = [
-                PRIORITIES[tile1.special],
-                PRIORITIES[tile2.special],
-              ];
-
-              moves.push({row1: row, col1: col, row2: row, col2: col + 1, priorities });
             }
           }
         }
@@ -612,8 +627,17 @@ export default {
             const tile1 = this.getTile(row, col);
             const tile2 = this.getTile(row + 1, col);
 
-            // Check for specials
-            if (!this.hasBigSpecial(tile1) && !this.hasBigSpecial(tile2)) {
+            // Check for special swaps
+            if ((this.hasBigSpecial(tile1) || this.hasBigSpecial(tile1)) || (this.hasSpecial(tile1) && this.hasSpecial(tile2))) {
+              // Big specials can always be swapped with any other tile
+              // Specials can be swapped with any other special
+              const priorities = [
+                PRIORITIES[tile1.special],
+                PRIORITIES[tile2.special],
+              ];
+
+              moves.push({row1: row, col1: col, row2: row + 1, col2: col, priorities });
+            } else {
               // Swap, find matches, swap back
               this.swapTiles(row, col, row + 1, col, false);
               this.findMatches();
@@ -624,14 +648,6 @@ export default {
                 const priorities = this.matches.map(m => m.priority);
                 moves.push({ row1: row, col1: col, row2: row + 1, col2: col, priorities });
               }
-            } else {
-              // Big specials can be swapped with any tile
-              const priorities = [
-                PRIORITIES[tile1.special],
-                PRIORITIES[tile2.special],
-              ];
-
-              moves.push({row1: row, col1: col, row2: row + 1, col2: col, priorities });
             }
           }
         }
@@ -988,14 +1004,34 @@ export default {
       await this.handleSpecialBomb(bombRow, bombCol, options);
     },
 
-
-
+    //
     isOtherOtherSwap(special1, special2) {
       return special1 !== SPECIALS.NONE && special2 !== SPECIALS.NONE;
     },
 
-    handleOtherOtherSwap(tile1, tile2) {
+    //
+    async handleOtherOtherSwap(tile1, tile2) {
       console.log(tile1.special, 'swapped with', tile2.special);
+
+      const { row: r1, col: c1, special: s1, type: t1 } = tile1;
+      const { row: r2, col: c2, special: s2, type: t2 } = tile2;
+
+      if (s1 === SPECIALS.WRAPPED || s2 === SPECIALS.WRAPPED) {
+        // Wrapped w/ fish
+
+        // Wrapped w/ striped
+
+        // Wrapped w/ wrapped
+      } else if (s1 === SPECIALS.STRIPED_H || s1 === SPECIALS.STRIPED_V || s2 === SPECIALS.STRIPED_H || s2 === SPECIALS.STRIPED_V) {
+        // Striped w/ fish
+
+        // Striped w/ striped
+      } else {
+        // Fish w/ fish
+        this.handleSpecialFish(r1, c1, r2, c2, 3);
+        this.removeTile(tile1);
+        this.removeTile(tile2);
+      }
     },
 
     /**
