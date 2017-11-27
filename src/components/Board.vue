@@ -1039,6 +1039,14 @@ export default {
       } else if (s1 === SPECIALS.STRIPED_H || s1 === SPECIALS.STRIPED_V || s2 === SPECIALS.STRIPED_H || s2 === SPECIALS.STRIPED_V) {
         if (s1 === SPECIALS.FISH || s2 === SPECIALS.FISH) {
           // Striped w/ fish
+          const directions = s1 === SPECIALS.STRIPED_H || s2 === SPECIALS.STRIPED_H
+            ? [DIRECTIONS.RIGHT, DIRECTIONS.LEFT]
+            : [DIRECTIONS.UP, DIRECTIONS.DOWN];
+
+          this.removeTile(tile1);
+          this.removeTile(tile2);
+          const position = await this.handleSpecialFish(r1, c1, r2, c2);
+          await this.handleSpecialStriped(position.row, position.col, directions)
 
         } else {
           // Striped w/ striped
