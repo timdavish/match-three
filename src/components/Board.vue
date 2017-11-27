@@ -864,7 +864,7 @@ export default {
       }
     },
 
-    //
+    // Checks for a painter/bomb swap
     isPainterBombSwap(special1, special2) {
       return (
         (special1 === SPECIALS.PAINTER && special2 === SPECIALS.BOMB) ||
@@ -872,7 +872,7 @@ export default {
       );
     },
 
-    //
+    // Handles a painter/bomb swap
     async handlePainterBombSwap(tile1, tile2) {
       // Hit every position 3 times
       const times = 3;
@@ -888,12 +888,12 @@ export default {
       await wait(TIMES.ANIMATIONS.PAINTER_BOMB);
     },
 
-    //
+    // Checks for a painter/painter swap
     isPainterPainterSwap(special1, special2) {
       return special1 === SPECIALS.PAINTER && special2 === SPECIALS.PAINTER;
     },
 
-    //
+    // Handles a painter/painter swap
     async handlePainterPainterSwap(tile1, tile2) {
       const { row: r1, col: c1, special: s1, type: t1 } = tile1;
       const { row: r2, col: c2, special: s2, type: t2 } = tile2;
@@ -907,7 +907,7 @@ export default {
       await this.handleSpecialPainter(painterRow, painterCol, options);
     },
 
-    //
+    // Checks for a painter/other swap
     isPainterOtherSwap(special1, special2) {
       return (
         (special1 === SPECIALS.PAINTER && special2 !== SPECIALS.NONE) ||
@@ -915,7 +915,7 @@ export default {
       );
     },
 
-    //
+    // Handles a painter/other swap
     async handlePainterOtherSwap(tile1, tile2) {
       const { row: r1, col: c1, special: s1, type: t1 } = tile1;
       const { row: r2, col: c2, special: s2, type: t2 } = tile2;
@@ -930,12 +930,12 @@ export default {
       await this.handleSpecialPainter(painterRow, painterCol, options);
     },
 
-    //
+    // Checks for a painter/none swap
     isPainterNoneSwap(special1, special2) {
       return special1 === SPECIALS.PAINTER || special2 === SPECIALS.PAINTER;
     },
 
-    //
+    // Handles a painter/none swap
     async handlePainterNoneSwap(tile1, tile2) {
       const { row: r1, col: c1, special: s1, type: t1 } = tile1;
       const { row: r2, col: c2, special: s2, type: t2 } = tile2;
@@ -950,12 +950,12 @@ export default {
       await this.handleSpecialPainter(painterRow, painterCol, options);
     },
 
-    //
+    // Checks for a bomb/bomb swap
     isBombBombSwap(special1, special2) {
       return special1 === SPECIALS.BOMB && special2 === SPECIALS.BOMB;
     },
 
-    //
+    // Handles a bomb/bomb swap
     async handleBombBombSwap(tile1, tile2) {
       // Hit every position once
       const targets = this.positions;
@@ -968,7 +968,7 @@ export default {
       await wait(TIMES.ANIMATIONS.BOMB_BOMB);
     },
 
-    //
+    // Checks for a bomb/other swap
     isBombOtherSwap(special1, special2) {
       return (
         (special1 === SPECIALS.BOMB && special2 !== SPECIALS.NONE) ||
@@ -976,7 +976,7 @@ export default {
       );
     },
 
-    //
+    // Handles a bomb/other swap
     async handleBombOtherSwap(tile1, tile2) {
       const { row: r1, col: c1, special: s1, type: t1 } = tile1;
       const { row: r2, col: c2, special: s2, type: t2 } = tile2;
@@ -991,12 +991,12 @@ export default {
       await this.handleSpecialBomb(bombRow, bombCol, options);
     },
 
-    //
+    // Checks for a bomb/none swap
     isBombNoneSwap(special1, special2) {
       return special1 === SPECIALS.BOMB || special2 === SPECIALS.BOMB;
     },
 
-    //
+    // Handles a bomb/none swap
     async handleBombNoneSwap(tile1, tile2) {
       const { row: r1, col: c1, special: s1, type: t1 } = tile1;
       const { row: r2, col: c2, special: s2, type: t2 } = tile2;
@@ -1011,15 +1011,13 @@ export default {
       await this.handleSpecialBomb(bombRow, bombCol, options);
     },
 
-    //
+    // Checks for an other/other swap
     isOtherOtherSwap(special1, special2) {
       return special1 !== SPECIALS.NONE && special2 !== SPECIALS.NONE;
     },
 
-    //
+    // Handles an other/other swap
     async handleOtherOtherSwap(tile1, tile2) {
-      console.log(tile1.special, 'swapped with', tile2.special);
-
       const { row: r1, col: c1, special: s1, type: t1 } = tile1;
       const { row: r2, col: c2, special: s2, type: t2 } = tile2;
 
