@@ -31,7 +31,7 @@ import Tile from './Tile';
 import PermutationException from '../exceptions/PermutationException';
 import { BLOCKERS, DIRECTIONS, POINTS, PRIORITIES, SPECIALS, STATUS, TIMES, VECTORS } from '../shared/constants';
 import { getLines } from '../shared/lines';
-import { deepCopy, equalOnProps, generateUid, isBlank, random, wait, waitInPromise } from '../shared/util';
+import { deepCopy, equalOnProps, generateUid, isArray, isBlank, random, wait, waitInPromise } from '../shared/util';
 
 export default {
   name: 'Board',
@@ -176,7 +176,7 @@ export default {
 
     // Handles special exploded wrappeds
     async handleExplodeds() {
-      const explodeds = this.tiles.filter(t => t.special === SPECIALS.WRAPPED_EXPLODED);
+      const explodeds = this.tiles.filter(t => t.special.includes(SPECIALS.WRAPPED_EXPLODED));
       await this.hitPositions(explodeds, true);
 
       return explodeds.length;
@@ -419,6 +419,9 @@ export default {
           case SPECIALS.WRAPPED_EXPLODED:
             await this.handleSpecialWrapped(row, col);
             break;
+          case SPECIALS.WRAPPED_EXPLODED_SUPER:
+            await this.handleSpecialWrapped(row, col, 2);
+            break;
           case SPECIALS.STRIPED_H:
             const hDirections = [DIRECTIONS.LEFT, DIRECTIONS.RIGHT];
             await this.handleSpecialStriped(row, col, hDirections);
@@ -484,8 +487,8 @@ export default {
     },
 
     // Handle special wrapped tiles
-    async handleSpecialWrapped(row, col, exploded = false) {
-      const neighbors = this.getValidNeighbors(row, col, true);
+    async handleSpecialWrapped(row, col, distance = 1) {
+      const neighbors = this.getValidNeighbors(row, col, distance, true);
 
       this.hitPositions(neighbors);
 
@@ -545,6 +548,8 @@ export default {
       }
 
       setTimeout(() => this.hitPositions(positions), TIMES.ANIMATIONS.FISH);
+
+      return positions[0];
     },
 
     // Finds all current available matches
@@ -766,29 +771,31 @@ export default {
         const special2 = tile2.special;
 
         // Check for special kinds of swaps
-        if (this.isPainterBombSwap(special1, special2)) {
-          await this.handlePainterBombSwap(tile1, tile2);
-
-        } else if (this.isPainterPainterSwap(special1, special2)) {
-          await this.handlePainterPainterSwap(tile1, tile2,);
-
-        } else if (this.isPainterOtherSwap(special1, special2)) {
-          await this.handlePainterOtherSwap(tile1, tile2);
-
-        } else if (this.isPainterNoneSwap(special1, special2)) {
-          await this.handlePainterNoneSwap(tile1, tile2);
-
-        } else if (this.isBombBombSwap(special1, special2)) {
-          await this.handleBombBombSwap(tile1, tile2);
-
-        } else if (this.isBombOtherSwap(special1, special2)) {
-          await this.handleBombOtherSwap(tile1, tile2);
-
-        } else if (this.isBombNoneSwap(special1, special2)) {
-          await this.handleBombNoneSwap(tile1, tile2);
-
-        } else if (this.isOtherOtherSwap(special1, special2)) {
-          await this.handleOtherOtherSwap(tile1, tile2);
+        switch (true) {
+          case this.isPainterBombSwap(special1, special2):
+            await this.handlePainterBombSwap(tile1, tile1);
+            break;
+          case this.isPainterPainterSwap(special1, special2):
+            await this.handlePainterPainterSwap(tile1, tile2);
+            break;
+          case this.isPainterOtherSwap(special1, special2):
+            await this.handlePainterOtherSwap(tile1, tile2);
+            break;
+          case this.isPainterNoneSwap(special1, special2):
+            await this.handlePainterNoneSwap(tile1, tile2);
+            break;
+          case this.isBombBombSwap(special1, special2):
+            await this.handleBombBombSwap(tile1, tile2);
+            break;
+          case this.isBombOtherSwap(special1, special2):
+            await this.handleBombOtherSwap(tile1, tile2);
+            break;
+          case this.isBombNoneSwap(special1, special2):
+            await this.handleBombNoneSwap(tile1, tile2);
+            break;
+          case this.isOtherOtherSwap(special1, special2):
+            await this.handleOtherOtherSwap(tile1, tile2);
+            break;
         }
 
         // Finally, run the game loop
@@ -1017,11 +1024,18 @@ export default {
       const { row: r2, col: c2, special: s2, type: t2 } = tile2;
 
       if (s1 === SPECIALS.WRAPPED || s2 === SPECIALS.WRAPPED) {
-        // Wrapped w/ fish
+        if (s1 === SPECIALS.FISH || s2 === SPECIALS.FISH) {
+          // Wrapped w/ fish
 
-        // Wrapped w/ striped
+        } else if (s1 === SPECIALS.STRIPED_H || s1 === SPECIALS.STRIPED_V || s2 === SPECIALS.STRIPED_H || s2 === SPECIALS.STRIPED_V) {
+          // Wrapped w/ striped
 
-        // Wrapped w/ wrapped
+        } else {
+          // Wrapped w/ wrapped
+          this.removeTile(tile1);
+          this.handleSpecialWrapped(r2, c2, 2);
+          this.setTileAs(tile2, { special: SPECIALS.WRAPPED_EXPLODED_SUPER });
+        }
       } else if (s1 === SPECIALS.STRIPED_H || s1 === SPECIALS.STRIPED_V || s2 === SPECIALS.STRIPED_H || s2 === SPECIALS.STRIPED_V) {
         // Striped w/ fish
 
@@ -1177,14 +1191,24 @@ export default {
      * Gets the coordinates in the given direction, from the given position
      * @param {Number} row The row of the position
      * @param {Number} col The column of the position
-     * @param {Direction} direction The direction
+     * @param {Array || String} direction The direction(s)
      * @return {Object} The coordinates in the given direction
      */
     getCoordinatesInDirection(row, col, direction) {
-      const vector = VECTORS[direction];
+      let totalVector = { row: 0, col: 0 };
+
+      if (isArray(direction)) {
+        direction.forEach(d => {
+          totalVector.row += VECTORS[d].row;
+          totalVector.col += VECTORS[d].col;
+        });
+      } else {
+        totalVector = VECTORS[direction];
+      }
+
       return {
-        row: row + vector.row,
-        col: col + vector.col,
+        row: row + totalVector.row,
+        col: col + totalVector.col,
       };
     },
 
@@ -1195,26 +1219,49 @@ export default {
      * @param {Boolean} all (Optional) Whether to get corner neighbors or not
      * @return {Array} Array of valid neighbors
      */
-    getValidNeighbors(row, col, all = false) {
-      const edges = [
-        this.getCoordinatesInDirection(row, col, DIRECTIONS.UP),
-        this.getCoordinatesInDirection(row, col, DIRECTIONS.RIGHT),
-        this.getCoordinatesInDirection(row, col, DIRECTIONS.DOWN),
-        this.getCoordinatesInDirection(row, col, DIRECTIONS.LEFT),
+    getValidNeighbors(row, col, distance = 1, all = false) {
+      const edgeDirections = [
+        DIRECTIONS.UP,
+        DIRECTIONS.RIGHT,
+        DIRECTIONS.DOWN,
+        DIRECTIONS.LEFT,
+      ];
+      const cornerDirections = [
+        DIRECTIONS.UP_LEFT,
+        DIRECTIONS.UP_RIGHT,
+        DIRECTIONS.DOWN_RIGHT,
+        DIRECTIONS.DOWN_LEFT,
       ];
 
-      const corners = [
-        this.getCoordinatesInDirection(row, col, DIRECTIONS.UP_LEFT),
-        this.getCoordinatesInDirection(row, col, DIRECTIONS.UP_RIGHT),
-        this.getCoordinatesInDirection(row, col, DIRECTIONS.DOWN_RIGHT),
-        this.getCoordinatesInDirection(row, col, DIRECTIONS.DOWN_LEFT),
-      ];
+      if (distance > 1) {
+        edgeDirections.push([DIRECTIONS.UP, DIRECTIONS.UP]);
+        edgeDirections.push([DIRECTIONS.RIGHT, DIRECTIONS.RIGHT]);
+        edgeDirections.push([DIRECTIONS.DOWN, DIRECTIONS.DOWN]);
+        edgeDirections.push([DIRECTIONS.LEFT, DIRECTIONS.LEFT]);
 
-      const neighbors = all
-        ? [...edges, ...corners]
-        : [...edges];
+        if (all) {
+          cornerDirections.push([DIRECTIONS.UP_LEFT, DIRECTIONS.UP_LEFT]);
+          cornerDirections.push([DIRECTIONS.UP_LEFT, DIRECTIONS.UP]);
+          cornerDirections.push([DIRECTIONS.UP_LEFT, DIRECTIONS.LEFT]);
+          cornerDirections.push([DIRECTIONS.UP_RIGHT, DIRECTIONS.UP_RIGHT]);
+          cornerDirections.push([DIRECTIONS.UP_RIGHT, DIRECTIONS.UP]);
+          cornerDirections.push([DIRECTIONS.UP_RIGHT, DIRECTIONS.RIGHT]);
+          cornerDirections.push([DIRECTIONS.DOWN_RIGHT, DIRECTIONS.DOWN_RIGHT]);
+          cornerDirections.push([DIRECTIONS.DOWN_RIGHT, DIRECTIONS.DOWN]);
+          cornerDirections.push([DIRECTIONS.DOWN_RIGHT, DIRECTIONS.RIGHT]);
+          cornerDirections.push([DIRECTIONS.DOWN_LEFT, DIRECTIONS.DOWN_LEFT]);
+          cornerDirections.push([DIRECTIONS.DOWN_LEFT, DIRECTIONS.DOWN]);
+          cornerDirections.push([DIRECTIONS.DOWN_LEFT, DIRECTIONS.LEFT]);
+        }
+      }
 
-      return neighbors.filter(n => this.validNeighbor(row, col, n.row, n.col, all));
+      const directions = all
+        ? [...edgeDirections, ...cornerDirections]
+        : [...edgeDirections];
+
+      const neighbors = directions.map(d => this.getCoordinatesInDirection(row, col, d));
+
+      return neighbors.filter(n => this.withinBoard(n.row, n.col));
     },
 
     /**
@@ -1293,14 +1340,20 @@ export default {
      * @param {Boolean} all Whether to check corner neighbors or not
      * @return {Boolean} Whether the given positions are neighbors or not
      */
-    validNeighbor(row1, col1, row2, col2, all = false) {
+    validNeighbor(row1, col1, row2, col2, distance = 1, all = false) {
       const withinBoard = this.withinBoard(row1, col1) && this.withinBoard(row2, col2);
       const validNeighbor = (
         // Edge neighbors
-        (Math.abs(row1 - row2) === 1 && col1 === col2) ||
-        (Math.abs(col1 - col2) === 1 && row1 === row2) ||
+        (Math.abs(row1 - row2) === distance && col1 === col2) ||
+        (Math.abs(col1 - col2) === distance && row1 === row2) ||
         // Corner neighbors (if all)
-        (all && Math.abs(row1 - row2) === 1 && Math.abs(col1 - col2) === 1)
+        (all &&
+          // True corners
+          (Math.abs(row1 - row2) === distance && Math.abs(col1 - col2) === distance) ||
+          // Semi corners
+          (Math.abs(row1 - row2) === distance && Math.abs(col1 - col2) === 1) ||
+          (Math.abs(row1 - row2) === 1 && Math.abs(col1 - col2) === distance)
+        )
       );
 
       return withinBoard && validNeighbor;
