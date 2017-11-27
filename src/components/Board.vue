@@ -1026,6 +1026,14 @@ export default {
       if (s1 === SPECIALS.WRAPPED || s2 === SPECIALS.WRAPPED) {
         if (s1 === SPECIALS.FISH || s2 === SPECIALS.FISH) {
           // Wrapped w/ fish
+          this.removeTile(tile1);
+          this.removeTile(tile2);
+
+          const position = this.handleSpecialFish(r1, c1, r2, c2);
+          const tile = this.getTile(position.row, position.col);
+
+          this.setTileAs(tile, { special: SPECIALS.WRAPPED });
+          await this.hitPositions([position]);
 
         } else if (s1 === SPECIALS.STRIPED_H || s1 === SPECIALS.STRIPED_V || s2 === SPECIALS.STRIPED_H || s2 === SPECIALS.STRIPED_V) {
           // Wrapped w/ striped
@@ -1045,7 +1053,7 @@ export default {
 
           this.removeTile(tile1);
           this.removeTile(tile2);
-          const position = await this.handleSpecialFish(r1, c1, r2, c2);
+          const position = this.handleSpecialFish(r1, c1, r2, c2);
           await this.handleSpecialStriped(position.row, position.col, directions)
 
         } else {
@@ -1113,7 +1121,7 @@ export default {
     },
 
     hasBlocker(position) {
-      return position.blocker !== BLOCKERS.NONE;
+      return !!position && position.blocker !== BLOCKERS.NONE;
     },
 
     hasSpecial(tile) {
