@@ -31,7 +31,7 @@ import Tile from './Tile';
 import PermutationException from '../exceptions/PermutationException';
 import { BLOCKERS, DIRECTIONS, POINTS, PRIORITIES, SPECIALS, STATUS, TIMES, VECTORS } from '../shared/constants';
 import { getLines } from '../shared/lines';
-import { deepCopy, equalOnProps, isBlank, random, wait, waitInPromise } from '../shared/util';
+import { deepCopy, equalOnProps, generateUid, isArray, isBlank, random, wait, waitInPromise } from '../shared/util';
 
 export default {
   name: 'Board',
@@ -65,17 +65,13 @@ export default {
   methods: {
     // Starts a new game
     newGame() {
-      const { positions, tiles: defaultTiles } = this.boardData;
-      const tileCount = defaultTiles.length;
-      const positionCount = positions.filter((p) => p.active).length;
+      const { positions, tiles } = this.boardData;
 
       // Set the board's positions
       this.positions = positions;
 
       // Set the board's tiles
-      this.tiles = tileCount === positionCount
-        ? defaultTiles
-        : this.getStartingTiles();
+      this.tiles = this.getStartingTiles(tiles);
 
       // Set other properties
       this.matches = [];
@@ -89,24 +85,26 @@ export default {
     },
 
     // Initializes new starting tiles
-    getStartingTiles() {
+    getStartingTiles(startTiles) {
       // Reset tiles
-      const tiles = [];
+      const tiles = startTiles;
 
       for (let row = 0; row < this.rows; row += 1) {
         for (let col = 0; col < this.cols; col += 1) {
-          const position = this.getPosition(row, col);
+          if (!tiles.some(t => t.row === row && t.col === col)) {
+            const position = this.getPosition(row, col);
 
-          // Make sure the position can contain a tile
-          if (this.isActivePosition(position)) {
-            tiles.push({
-              id: this.coordinatesToIndex({ row, col }),
-              row, col,
-              type: this.getRandomTileType(),
-              special: SPECIALS.NONE,
-              shifts: [],
-              removed: false
-            });
+            // Make sure the position can contain a tile
+            if (this.isActivePosition(position)) {
+              tiles.push({
+                id: generateUid(),
+                row, col,
+                type: this.getRandomTileType(),
+                special: SPECIALS.NONE,
+                shifts: [],
+                removed: false
+              });
+            }
           }
         }
       }
@@ -178,7 +176,7 @@ export default {
 
     // Handles special exploded wrappeds
     async handleExplodeds() {
-      const explodeds = this.tiles.filter(t => t.special === SPECIALS.WRAPPED_EXPLODED);
+      const explodeds = this.tiles.filter(t => t.special.includes(SPECIALS.WRAPPED_EXPLODED));
       await this.hitPositions(explodeds, true);
 
       return explodeds.length;
@@ -222,7 +220,12 @@ export default {
       for (let newSpecial of newSpecials) {
         const { positions, special } = newSpecial;
 
-        const swapPosition = positions.find(p => (p.row === row1 && p.col === col1) || (p.row === row2 && p.col === col2));
+        const swapPosition = positions.find(p => {
+          const t = this.getTile(p.row, p.col);
+          return (
+            t.special === SPECIALS.NONE && ((p.row === row1 && p.col === col1) || (p.row === row2 && p.col === col2))
+          );
+        });
         const position = swapPosition || getOpenPosition(positions);
         const tile = this.getTile(position.row, position.col);
 
@@ -260,7 +263,7 @@ export default {
           const tile = this.getTile(row, col);
           const newShift = this.getOppositeDirection(feedDirection);
 
-          if (tile.removed) {
+          if (tile && tile.removed) {
             haveShifts = true;
 
             // Add new shift
@@ -366,6 +369,7 @@ export default {
     async hitPositions(positions, explodeds = false) {
       const removedSpecials = [];
       for (let position of positions) {
+        // Allow for tiles to be passed in
         if (!position.blocker) {
           position = this.getPosition(position.row, position.col);
         }
@@ -375,10 +379,11 @@ export default {
         } else {
           // Make sure there is a tile to hit
           const tile = this.getTile(position.row, position.col);
-          const tileCopy = deepCopy(tile);
-          const special = tile.special;
 
-          if (tile && special && (special !== SPECIALS.WRAPPED_EXPLODED || explodeds)) {
+          if (tile && tile.special && (explodeds || tile.special !== SPECIALS.WRAPPED_EXPLODED)) {
+            const tileCopy = deepCopy(tile);
+            const special = tile.special;
+
             if (!tile.removed) {
               this.removeTile(tile);
             }
@@ -414,6 +419,9 @@ export default {
           case SPECIALS.WRAPPED_EXPLODED:
             await this.handleSpecialWrapped(row, col);
             break;
+          case SPECIALS.WRAPPED_EXPLODED_SUPER:
+            await this.handleSpecialWrapped(row, col, 2);
+            break;
           case SPECIALS.STRIPED_H:
             const hDirections = [DIRECTIONS.LEFT, DIRECTIONS.RIGHT];
             await this.handleSpecialStriped(row, col, hDirections);
@@ -431,43 +439,47 @@ export default {
 
     // Handle special painter tiles
     async handleSpecialPainter(row, col, options = {}) {
-      const { type } = options;
+      const { special, types } = options;
 
       const painter = this.getTile(row, col);
-      const typesToPaint = [
-        isBlank(type) || type === painter.type ? this.getRandomTileType(painter.type) : type,
-        painter.type
-      ];
+      const type = painter.type;
+      const typesToPaint = types || [painter.type, this.getRandomTileType(painter.type)];
       const tilesToPaint = this.tiles.filter(tile => typesToPaint.some(t => t === tile.type));
 
       // Promise.all makes sure we wait for all the animations to finish
       await Promise.all(tilesToPaint.map(tile => {
-        return new Promise(resolve => {
-          // Paint the tile in a random amount of time
-          const paintTime = random(TIMES.ANIMATIONS.PAINTER_MINIMUM, TIMES.ANIMATIONS.PAINTER_MAXIMUM);
+        const paintTime = random(TIMES.ANIMATIONS.PAINTER_MINIMUM, TIMES.ANIMATIONS.PAINTER_MAXIMUM);
 
-          setTimeout(() => resolve(this.setTileAs(tile, { type: painter.type })), paintTime);
+        return new Promise(resolve => {
+          setTimeout(() => resolve(this.setTileAs(tile, { special, type })), paintTime);
         });
       }));
 
       this.removeTile(painter);
+
+      if (special !== SPECIALS.NONE) {
+        await this.hitPositions(tilesToPaint);
+      }
     },
 
     // Handle special bomb tiles
     async handleSpecialBomb(row, col, options = {}) {
-      const { type } = options;
+      const { special, type } = options;
 
       const bomb = this.getTile(row, col);
       const typeToBomb = isBlank(type) ? this.getRandomTileType() : type;
       const tilesToBomb = this.tiles.filter(tile => tile.type === typeToBomb);
-      const targets = tilesToBomb.map(t => this.getPosition(t.row, t.col));
 
       // Promise.all makes sure we wait for all the animations to finish
-      await Promise.all(targets.map(position => {
-        return new Promise(resolve => {
-          const bombTime = random(TIMES.ANIMATIONS.BOMB_MINIMUM, TIMES.ANIMATIONS.BOMB_MAXIMUM);
+      await Promise.all(tilesToBomb.map(tile => {
+        const bombTime = random(TIMES.ANIMATIONS.BOMB_MINIMUM, TIMES.ANIMATIONS.BOMB_MAXIMUM);
 
-          setTimeout(() => resolve(this.hitPositions([position])), bombTime);
+        if (special !== SPECIALS.NONE && tile.special === SPECIALS.NONE) {
+          this.setTileAs(tile, { special });
+        }
+
+        return new Promise(resolve => {
+          setTimeout(() => resolve(this.hitPositions([tile])), bombTime);
         });
       }));
 
@@ -475,8 +487,8 @@ export default {
     },
 
     // Handle special wrapped tiles
-    async handleSpecialWrapped(row, col, exploded = false) {
-      const neighbors = this.getValidNeighbors(row, col, true);
+    async handleSpecialWrapped(row, col, distance = 1) {
+      const neighbors = this.getValidNeighbors(row, col, distance, true);
 
       this.hitPositions(neighbors);
 
@@ -492,9 +504,8 @@ export default {
         return { ...coords, direction };
       }).filter(c => this.withinBoard(c.row, c.col));
 
-      // Save this position
-      const positionCopy = this.getPosition(row, col);
-      this.hitPositions([positionCopy]);
+      const position = this.getPosition(row, col);
+      this.hitPositions([position]);
 
       // Promise.all makes sure we wait for all the animations to finish
       await Promise.all(filteredCoords.map(coords => {
@@ -509,18 +520,36 @@ export default {
     },
 
     // Handle special fish tiles
-    handleSpecialFish(row, col) {
-      let randomRow = random(this.rows - 1);
-      let randomCol = random(this.cols - 1);
+    handleSpecialFish(row1, col1, row2, col2, targetCount = 1) {
+      const fishLocs = [
+        { row: row1, col: col1 },
+        { row: row2, col: col2 },
+      ];
 
-      // Make sure we choose a different random position
-      while (randomRow === row && randomCol === col) {
-        randomRow = random(this.rows - 1);
-        randomCol = random(this.cols - 1);
+      let positions = [];
+
+      for (let fishNum = 1; fishNum <= targetCount; fishNum += 1) {
+        let randRow;
+        let randCol;
+        let position;
+
+        // Make sure we choose a different random position
+        do {
+          randRow = random(this.rows - 1);
+          randCol = random(this.cols - 1);
+          position = this.getPosition(randRow, randCol);
+        } while (
+          fishLocs.some(l => l.row === randRow && l.col == randCol) ||
+          positions.some(p => p === position) ||
+          !position.active
+        )
+
+        positions.push(position);
       }
 
-      const position = this.getPosition(randomRow, randomCol);
-      setTimeout(() => this.hitPositions([position]), TIMES.ANIMATIONS.FISH);
+      setTimeout(() => this.hitPositions(positions), TIMES.ANIMATIONS.FISH);
+
+      return positions[0];
     },
 
     // Finds all current available matches
@@ -530,13 +559,11 @@ export default {
 
       // Calculate best match for each board position
       this.positions.forEach((p) => {
-        const { row, col, active } = p;
+        const { row, col } = p;
 
-        if (active) {
-          const match = this.calculateBestMatch(row, col);
-          if (match !== null) {
-            matches.push(match);
-          }
+        const match = this.calculateBestMatch(row, col);
+        if (match !== null) {
+          matches.push(match);
         }
       });
 
@@ -569,8 +596,17 @@ export default {
             const tile1 = this.getTile(row, col);
             const tile2 = this.getTile(row, col + 1);
 
-            // Check for specials
-            if (!this.hasBigSpecial(tile1) && !this.hasBigSpecial(tile2)) {
+            // Check for special swaps
+            if ((this.hasBigSpecial(tile1) || this.hasBigSpecial(tile1)) || (this.hasSpecial(tile1) && this.hasSpecial(tile2))) {
+              // Big specials can always be swapped with any other tile
+              // Specials can be swapped with any other special
+              const priorities = [
+                PRIORITIES[tile1.special],
+                PRIORITIES[tile2.special],
+              ];
+
+              moves.push({row1: row, col1: col, row2: row, col2: col + 1, priorities });
+            } else {
               // Swap, find matches, swap back
               this.swapTiles(row, col, row, col + 1, false);
               this.findMatches();
@@ -581,14 +617,6 @@ export default {
                 const priorities = this.matches.map(m => m.priority);
                 moves.push({ row1: row, col1: col, row2: row, col2: col + 1, priorities });
               }
-            } else {
-              // Big specials can be swapped with any tile
-              const priorities = [
-                PRIORITIES[tile1.special],
-                PRIORITIES[tile2.special],
-              ];
-
-              moves.push({row1: row, col1: col, row2: row, col2: col + 1, priorities });
             }
           }
         }
@@ -604,8 +632,17 @@ export default {
             const tile1 = this.getTile(row, col);
             const tile2 = this.getTile(row + 1, col);
 
-            // Check for specials
-            if (!this.hasBigSpecial(tile1) && !this.hasBigSpecial(tile2)) {
+            // Check for special swaps
+            if ((this.hasBigSpecial(tile1) || this.hasBigSpecial(tile1)) || (this.hasSpecial(tile1) && this.hasSpecial(tile2))) {
+              // Big specials can always be swapped with any other tile
+              // Specials can be swapped with any other special
+              const priorities = [
+                PRIORITIES[tile1.special],
+                PRIORITIES[tile2.special],
+              ];
+
+              moves.push({row1: row, col1: col, row2: row + 1, col2: col, priorities });
+            } else {
               // Swap, find matches, swap back
               this.swapTiles(row, col, row + 1, col, false);
               this.findMatches();
@@ -616,14 +653,6 @@ export default {
                 const priorities = this.matches.map(m => m.priority);
                 moves.push({ row1: row, col1: col, row2: row + 1, col2: col, priorities });
               }
-            } else {
-              // Big specials can be swapped with any tile
-              const priorities = [
-                PRIORITIES[tile1.special],
-                PRIORITIES[tile2.special],
-              ];
-
-              moves.push({row1: row, col1: col, row2: row + 1, col2: col, priorities });
             }
           }
         }
@@ -742,29 +771,31 @@ export default {
         const special2 = tile2.special;
 
         // Check for special kinds of swaps
-        if (this.isPainterBombSwap(special1, special2)) {
-          await this.handlePainterBombSwap(tile1, tile2);
-
-        } else if (this.isPainterPainterSwap(special1, special2)) {
-          await this.handlePainterPainterSwap(tile1, tile2,);
-
-        } else if (this.isPainterOtherSwap(special1, special2)) {
-          await this.handlePainterOtherSwap(tile1, tile2);
-
-        } else if (this.isPainterNoneSwap(special1, special2)) {
-          await this.handlePainterNoneSwap(tile1, tile2);
-
-        } else if (this.isBombBombSwap(special1, special2)) {
-          await this.handleBombBombSwap(tile1, tile2);
-
-        } else if (this.isBombOtherSwap(special1, special2)) {
-          await this.handleBombOtherSwap(tile1, tile2);
-
-        } else if (this.isBombNoneSwap(special1, special2)) {
-          await this.handleBombNoneSwap(tile1, tile2);
-
-        } else if (this.isOtherOtherSwap(special1, special2)) {
-          await this.handleOtherOtherSwap(tile1, tile2);
+        switch (true) {
+          case this.isPainterBombSwap(special1, special2):
+            await this.handlePainterBombSwap(tile1, tile1);
+            break;
+          case this.isPainterPainterSwap(special1, special2):
+            await this.handlePainterPainterSwap(tile1, tile2);
+            break;
+          case this.isPainterOtherSwap(special1, special2):
+            await this.handlePainterOtherSwap(tile1, tile2);
+            break;
+          case this.isPainterNoneSwap(special1, special2):
+            await this.handlePainterNoneSwap(tile1, tile2);
+            break;
+          case this.isBombBombSwap(special1, special2):
+            await this.handleBombBombSwap(tile1, tile2);
+            break;
+          case this.isBombOtherSwap(special1, special2):
+            await this.handleBombOtherSwap(tile1, tile2);
+            break;
+          case this.isBombNoneSwap(special1, special2):
+            await this.handleBombNoneSwap(tile1, tile2);
+            break;
+          case this.isOtherOtherSwap(special1, special2):
+            await this.handleOtherOtherSwap(tile1, tile2);
+            break;
         }
 
         // Finally, run the game loop
@@ -833,9 +864,7 @@ export default {
       }
     },
 
-
-
-
+    // Checks for a painter/bomb swap
     isPainterBombSwap(special1, special2) {
       return (
         (special1 === SPECIALS.PAINTER && special2 === SPECIALS.BOMB) ||
@@ -843,18 +872,42 @@ export default {
       );
     },
 
-    handlePainterBombSwap(tile1, tile2) {
-      console.log(tile1.special, 'swapped with', tile2.special);
+    // Handles a painter/bomb swap
+    async handlePainterBombSwap(tile1, tile2) {
+      // Hit every position 3 times
+      const times = 3;
+      const targets = this.positions;
+
+      this.removeTile(tile1);
+      this.removeTile(tile2);
+
+      for (let time = 1; time <= times; time += 1) {
+        this.hitPositions(targets);
+      }
+
+      await wait(TIMES.ANIMATIONS.PAINTER_BOMB);
     },
 
+    // Checks for a painter/painter swap
     isPainterPainterSwap(special1, special2) {
       return special1 === SPECIALS.PAINTER && special2 === SPECIALS.PAINTER;
     },
 
-    handlePainterPainterSwap(tile1, tile2) {
-      console.log(tile1.special, 'swapped with', tile2.special);
+    // Handles a painter/painter swap
+    async handlePainterPainterSwap(tile1, tile2) {
+      const { row: r1, col: c1, special: s1, type: t1 } = tile1;
+      const { row: r2, col: c2, special: s2, type: t2 } = tile2;
+
+      const painterRow = s1 === SPECIALS.PAINTER ? r1 : r2;
+      const painterCol = s1 === SPECIALS.PAINTER ? c1 : c2;
+      const types = this.tileTypes;
+
+      const options = { types };
+
+      await this.handleSpecialPainter(painterRow, painterCol, options);
     },
 
+    // Checks for a painter/other swap
     isPainterOtherSwap(special1, special2) {
       return (
         (special1 === SPECIALS.PAINTER && special2 !== SPECIALS.NONE) ||
@@ -862,39 +915,60 @@ export default {
       );
     },
 
-    handlePainterOtherSwap(tile1, tile2) {
-      console.log(tile1.special, 'swapped with', tile2.special);
+    // Handles a painter/other swap
+    async handlePainterOtherSwap(tile1, tile2) {
+      const { row: r1, col: c1, special: s1, type: t1 } = tile1;
+      const { row: r2, col: c2, special: s2, type: t2 } = tile2;
+
+      const painterRow = s1 === SPECIALS.PAINTER ? r1 : r2;
+      const painterCol = s1 === SPECIALS.PAINTER ? c1 : c2;
+      const special = s1 === SPECIALS.PAINTER ? s2 : s1;
+      const types = [t1, t2];
+
+      const options = { special, types };
+
+      await this.handleSpecialPainter(painterRow, painterCol, options);
     },
 
+    // Checks for a painter/none swap
     isPainterNoneSwap(special1, special2) {
       return special1 === SPECIALS.PAINTER || special2 === SPECIALS.PAINTER;
     },
 
+    // Handles a painter/none swap
     async handlePainterNoneSwap(tile1, tile2) {
       const { row: r1, col: c1, special: s1, type: t1 } = tile1;
       const { row: r2, col: c2, special: s2, type: t2 } = tile2;
 
-      let row = r2;
-      let col = c2;
-      let options = { type: t1 };
+      const painterRow = s1 === SPECIALS.PAINTER ? r1 : r2;
+      const painterCol = s1 === SPECIALS.PAINTER ? c1 : c2;
+      const special = s1 === SPECIALS.PAINTER ? s2 : s1;
+      const types = [t1, t2];
 
-      if (s1 === SPECIALS.PAINTER) {
-        row = r1;
-        col = c1;
-        options.type = t2;
-      }
+      const options = { special, types };
 
-      await this.handleSpecialPainter(row, col, options);
+      await this.handleSpecialPainter(painterRow, painterCol, options);
     },
 
+    // Checks for a bomb/bomb swap
     isBombBombSwap(special1, special2) {
       return special1 === SPECIALS.BOMB && special2 === SPECIALS.BOMB;
     },
 
-    handleBombBombSwap(tile1, tile2) {
-      console.log(tile1.special, 'swapped with', tile2.special);
+    // Handles a bomb/bomb swap
+    async handleBombBombSwap(tile1, tile2) {
+      // Hit every position once
+      const targets = this.positions;
+
+      this.removeTile(tile1);
+      this.removeTile(tile2);
+
+      this.hitPositions(targets);
+
+      await wait(TIMES.ANIMATIONS.BOMB_BOMB);
     },
 
+    // Checks for a bomb/other swap
     isBombOtherSwap(special1, special2) {
       return (
         (special1 === SPECIALS.BOMB && special2 !== SPECIALS.NONE) ||
@@ -902,37 +976,122 @@ export default {
       );
     },
 
-    handleBombOtherSwap(tile1, tile2) {
-      console.log(tile1.special, 'swapped with', tile2.special);
+    // Handles a bomb/other swap
+    async handleBombOtherSwap(tile1, tile2) {
+      const { row: r1, col: c1, special: s1, type: t1 } = tile1;
+      const { row: r2, col: c2, special: s2, type: t2 } = tile2;
+
+      const bombRow = s1 === SPECIALS.BOMB ? r1 : r2;
+      const bombCol = s1 === SPECIALS.BOMB ? c1 : c2;
+      const special = s1 === SPECIALS.BOMB ? s2 : s1;
+      const type = s1 === SPECIALS.BOMB ? t2 : t1;
+
+      const options = { special, type };
+
+      await this.handleSpecialBomb(bombRow, bombCol, options);
     },
 
+    // Checks for a bomb/none swap
     isBombNoneSwap(special1, special2) {
       return special1 === SPECIALS.BOMB || special2 === SPECIALS.BOMB;
     },
 
+    // Handles a bomb/none swap
     async handleBombNoneSwap(tile1, tile2) {
       const { row: r1, col: c1, special: s1, type: t1 } = tile1;
       const { row: r2, col: c2, special: s2, type: t2 } = tile2;
 
-      let row = r2;
-      let col = c2;
-      let options = { type: t1 };
+      const bombRow = s1 === SPECIALS.BOMB ? r1 : r2;
+      const bombCol = s1 === SPECIALS.BOMB ? c1 : c2;
+      const special = s1 === SPECIALS.BOMB ? s2 : s1;
+      const type = s1 === SPECIALS.BOMB ? t2 : t1;
 
-      if (s1 === SPECIALS.BOMB) {
-        row = r1;
-        col = c1;
-        options.type = t2;
-      }
+      const options = { special, type };
 
-      await this.handleSpecialBomb(row, col, options);
+      await this.handleSpecialBomb(bombRow, bombCol, options);
     },
 
+    // Checks for an other/other swap
     isOtherOtherSwap(special1, special2) {
       return special1 !== SPECIALS.NONE && special2 !== SPECIALS.NONE;
     },
 
-    handleOtherOtherSwap(tile1, tile2) {
-      console.log(tile1.special, 'swapped with', tile2.special);
+    // Handles an other/other swap
+    async handleOtherOtherSwap(tile1, tile2) {
+      const { row: r1, col: c1, special: s1, type: t1 } = tile1;
+      const { row: r2, col: c2, special: s2, type: t2 } = tile2;
+
+      if (s1 === SPECIALS.WRAPPED || s2 === SPECIALS.WRAPPED) {
+        if (s1 === SPECIALS.FISH || s2 === SPECIALS.FISH) {
+          // Wrapped w/ fish
+          const position = this.handleSpecialFish(r1, c1, r2, c2);
+          const tile = this.getTile(position.row, position.col);
+
+          this.removeTile(tile1);
+          this.removeTile(tile2);
+
+          this.setTileAs(tile, { special: SPECIALS.WRAPPED });
+          await this.hitPositions([position]);
+
+        } else if (s1 === SPECIALS.STRIPED_H || s1 === SPECIALS.STRIPED_V || s2 === SPECIALS.STRIPED_H || s2 === SPECIALS.STRIPED_V) {
+          // Wrapped w/ striped
+          const horizontal = [DIRECTIONS.RIGHT, DIRECTIONS.LEFT];
+          const vertical = [DIRECTIONS.UP, DIRECTIONS.DOWN];
+          const neighbors = this.getValidNeighbors(r2, c2);
+
+          this.removeTile(tile1);
+          this.removeTile(tile2);
+
+          // Horizontal swipe
+          await Promise.all(neighbors.map(n => {
+            return new Promise(async resolve => {
+              await this.handleSpecialStriped(n.row, n.col, horizontal);
+              resolve();
+            });
+          }));
+
+          await wait(250);
+
+          // Vertical swipe
+          await Promise.all(neighbors.map(n => {
+            return new Promise(async resolve => {
+              await this.handleSpecialStriped(n.row, n.col, vertical);
+              resolve();
+            });
+          }));
+
+          await wait(250);
+        } else {
+          // Wrapped w/ wrapped
+          this.removeTile(tile1);
+          await this.handleSpecialWrapped(r2, c2, 2);
+          this.setTileAs(tile2, { special: SPECIALS.WRAPPED_EXPLODED_SUPER });
+        }
+      } else if (s1 === SPECIALS.STRIPED_H || s1 === SPECIALS.STRIPED_V || s2 === SPECIALS.STRIPED_H || s2 === SPECIALS.STRIPED_V) {
+        if (s1 === SPECIALS.FISH || s2 === SPECIALS.FISH) {
+          // Striped w/ fish
+          const directions = s1 === SPECIALS.STRIPED_H || s2 === SPECIALS.STRIPED_H
+            ? [DIRECTIONS.RIGHT, DIRECTIONS.LEFT]
+            : [DIRECTIONS.UP, DIRECTIONS.DOWN];
+
+          this.removeTile(tile1);
+          this.removeTile(tile2);
+          const position = this.handleSpecialFish(r1, c1, r2, c2);
+          await this.handleSpecialStriped(position.row, position.col, directions)
+
+        } else {
+          // Striped w/ striped
+          const directions = [DIRECTIONS.UP, DIRECTIONS.RIGHT, DIRECTIONS.DOWN, DIRECTIONS.LEFT];
+          this.removeTile(tile1);
+          await this.handleSpecialStriped(r2, c2, directions);
+          this.removeTile(tile2);
+        }
+      } else {
+        // Fish w/ fish
+        this.handleSpecialFish(r1, c1, r2, c2, 3);
+        this.removeTile(tile1);
+        this.removeTile(tile2);
+      }
     },
 
     /**
@@ -957,10 +1116,12 @@ export default {
       return randomType;
     },
 
-    setTileAs(tile, options = {}) {
+    setTileAs(tile, props = {}) {
       return new Promise(resolve => {
-        for (let option in options) {
-          tile[option] = options[option];
+        for (let prop in props) {
+          if (!isBlank(props[prop])) {
+            tile[prop] = props[prop];
+          }
         }
         resolve();
       });
@@ -983,7 +1144,7 @@ export default {
     },
 
     hasBlocker(position) {
-      return position.blocker !== BLOCKERS.NONE;
+      return !!position && position.blocker !== BLOCKERS.NONE;
     },
 
     hasSpecial(tile) {
@@ -1076,14 +1237,24 @@ export default {
      * Gets the coordinates in the given direction, from the given position
      * @param {Number} row The row of the position
      * @param {Number} col The column of the position
-     * @param {Direction} direction The direction
+     * @param {Array || String} direction The direction(s)
      * @return {Object} The coordinates in the given direction
      */
     getCoordinatesInDirection(row, col, direction) {
-      const vector = VECTORS[direction];
+      let totalVector = { row: 0, col: 0 };
+
+      if (isArray(direction)) {
+        direction.forEach(d => {
+          totalVector.row += VECTORS[d].row;
+          totalVector.col += VECTORS[d].col;
+        });
+      } else {
+        totalVector = VECTORS[direction];
+      }
+
       return {
-        row: row + vector.row,
-        col: col + vector.col,
+        row: row + totalVector.row,
+        col: col + totalVector.col,
       };
     },
 
@@ -1094,26 +1265,49 @@ export default {
      * @param {Boolean} all (Optional) Whether to get corner neighbors or not
      * @return {Array} Array of valid neighbors
      */
-    getValidNeighbors(row, col, all = false) {
-      const edges = [
-        this.getCoordinatesInDirection(row, col, DIRECTIONS.UP),
-        this.getCoordinatesInDirection(row, col, DIRECTIONS.RIGHT),
-        this.getCoordinatesInDirection(row, col, DIRECTIONS.DOWN),
-        this.getCoordinatesInDirection(row, col, DIRECTIONS.LEFT),
+    getValidNeighbors(row, col, distance = 1, all = false) {
+      const edgeDirections = [
+        DIRECTIONS.UP,
+        DIRECTIONS.RIGHT,
+        DIRECTIONS.DOWN,
+        DIRECTIONS.LEFT,
+      ];
+      const cornerDirections = [
+        DIRECTIONS.UP_LEFT,
+        DIRECTIONS.UP_RIGHT,
+        DIRECTIONS.DOWN_RIGHT,
+        DIRECTIONS.DOWN_LEFT,
       ];
 
-      const corners = [
-        this.getCoordinatesInDirection(row, col, DIRECTIONS.UP_LEFT),
-        this.getCoordinatesInDirection(row, col, DIRECTIONS.UP_RIGHT),
-        this.getCoordinatesInDirection(row, col, DIRECTIONS.DOWN_RIGHT),
-        this.getCoordinatesInDirection(row, col, DIRECTIONS.DOWN_LEFT),
-      ];
+      if (distance > 1) {
+        edgeDirections.push([DIRECTIONS.UP, DIRECTIONS.UP]);
+        edgeDirections.push([DIRECTIONS.RIGHT, DIRECTIONS.RIGHT]);
+        edgeDirections.push([DIRECTIONS.DOWN, DIRECTIONS.DOWN]);
+        edgeDirections.push([DIRECTIONS.LEFT, DIRECTIONS.LEFT]);
 
-      const neighbors = all
-        ? [...edges, ...corners]
-        : [...edges];
+        if (all) {
+          cornerDirections.push([DIRECTIONS.UP_LEFT, DIRECTIONS.UP_LEFT]);
+          cornerDirections.push([DIRECTIONS.UP_LEFT, DIRECTIONS.UP]);
+          cornerDirections.push([DIRECTIONS.UP_LEFT, DIRECTIONS.LEFT]);
+          cornerDirections.push([DIRECTIONS.UP_RIGHT, DIRECTIONS.UP_RIGHT]);
+          cornerDirections.push([DIRECTIONS.UP_RIGHT, DIRECTIONS.UP]);
+          cornerDirections.push([DIRECTIONS.UP_RIGHT, DIRECTIONS.RIGHT]);
+          cornerDirections.push([DIRECTIONS.DOWN_RIGHT, DIRECTIONS.DOWN_RIGHT]);
+          cornerDirections.push([DIRECTIONS.DOWN_RIGHT, DIRECTIONS.DOWN]);
+          cornerDirections.push([DIRECTIONS.DOWN_RIGHT, DIRECTIONS.RIGHT]);
+          cornerDirections.push([DIRECTIONS.DOWN_LEFT, DIRECTIONS.DOWN_LEFT]);
+          cornerDirections.push([DIRECTIONS.DOWN_LEFT, DIRECTIONS.DOWN]);
+          cornerDirections.push([DIRECTIONS.DOWN_LEFT, DIRECTIONS.LEFT]);
+        }
+      }
 
-      return neighbors.filter(n => this.validNeighbor(row, col, n.row, n.col, all));
+      const directions = all
+        ? [...edgeDirections, ...cornerDirections]
+        : [...edgeDirections];
+
+      const neighbors = directions.map(d => this.getCoordinatesInDirection(row, col, d));
+
+      return neighbors.filter(n => this.withinBoard(n.row, n.col));
     },
 
     /**
@@ -1192,14 +1386,20 @@ export default {
      * @param {Boolean} all Whether to check corner neighbors or not
      * @return {Boolean} Whether the given positions are neighbors or not
      */
-    validNeighbor(row1, col1, row2, col2, all = false) {
+    validNeighbor(row1, col1, row2, col2, distance = 1, all = false) {
       const withinBoard = this.withinBoard(row1, col1) && this.withinBoard(row2, col2);
       const validNeighbor = (
         // Edge neighbors
-        (Math.abs(row1 - row2) === 1 && col1 === col2) ||
-        (Math.abs(col1 - col2) === 1 && row1 === row2) ||
+        (Math.abs(row1 - row2) === distance && col1 === col2) ||
+        (Math.abs(col1 - col2) === distance && row1 === row2) ||
         // Corner neighbors (if all)
-        (all && Math.abs(row1 - row2) === 1 && Math.abs(col1 - col2) === 1)
+        (all &&
+          // True corners
+          (Math.abs(row1 - row2) === distance && Math.abs(col1 - col2) === distance) ||
+          // Semi corners
+          (Math.abs(row1 - row2) === distance && Math.abs(col1 - col2) === 1) ||
+          (Math.abs(row1 - row2) === 1 && Math.abs(col1 - col2) === distance)
+        )
       );
 
       return withinBoard && validNeighbor;

@@ -82,13 +82,33 @@ export const PRIORITIES = {
   NONE: 9,
 };
 
+export const SPECIALS = {
+  // Creatable
+  PAINTER: 'PAINTER',
+  BOMB: 'BOMB',
+  WRAPPED: 'WRAPPED',
+  WRAPPED_EXPLODED: 'WRAPPED_EXPLODED',
+  WRAPPED_EXPLODED_SUPER: 'WRAPPED_EXPLODED_SUPER',
+  STRIPED_H: 'STRIPED H',
+  STRIPED_V: 'STRIPED V',
+  FISH: 'FISH',
+  NONE: 'NONE',
+  // Not Creatable
+  SODA: 'SODA',
+};
+
+export const STATUS = {
+  BUSY: 'BUSY',
+  IDLE: 'IDLE',
+};
+
 export const TILETYPES = {
-  BLUE: 'BLUE',
-  GREEN: 'GREEN',
-  ORANGE: 'ORANGE',
-  PURPLE: 'PURPLE',
-  RED: 'RED',
-  YELLOW: 'YELLOW',
+  BLUE: 3,
+  GREEN: 2,
+  ORANGE: 1,
+  PURPLE: 4,
+  RED: 0,
+  YELLOW: 5,
 };
 
 export const TIMES = {
@@ -107,32 +127,16 @@ export const TIMES = {
     BOMB_MINIMUM: 750,
     WRAPPED: 100,
     STRIPED: 100,
-    FISH: 100,
+    FISH: 350,
+    // Special combinations
+    PAINTER_BOMB: 1000,
+    BOMB_BOMB: 1000,
   },
   WAITS: {
     SUGGESTION: 10000,
     THINK_MAXIMUM: 1000,
     THINK_MINIMUM: 500,
   },
-};
-
-export const SPECIALS = {
-  // Creatable
-  PAINTER: 'PAINTER',
-  BOMB: 'BOMB',
-  WRAPPED: 'WRAPPED',
-  WRAPPED_EXPLODED: 'WRAPPED_EXPLODED',
-  STRIPED_H: 'STRIPED H',
-  STRIPED_V: 'STRIPED V',
-  FISH: 'FISH',
-  NONE: 'NONE',
-  // Not Creatable
-  SODA: 'SODA',
-};
-
-export const STATUS = {
-  BUSY: 'BUSY',
-  IDLE: 'IDLE',
 };
 
 export const VECTORS = {
