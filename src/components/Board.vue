@@ -1033,13 +1033,20 @@ export default {
         } else {
           // Wrapped w/ wrapped
           this.removeTile(tile1);
-          this.handleSpecialWrapped(r2, c2, 2);
+          await this.handleSpecialWrapped(r2, c2, 2);
           this.setTileAs(tile2, { special: SPECIALS.WRAPPED_EXPLODED_SUPER });
         }
       } else if (s1 === SPECIALS.STRIPED_H || s1 === SPECIALS.STRIPED_V || s2 === SPECIALS.STRIPED_H || s2 === SPECIALS.STRIPED_V) {
-        // Striped w/ fish
+        if (s1 === SPECIALS.FISH || s2 === SPECIALS.FISH) {
+          // Striped w/ fish
 
-        // Striped w/ striped
+        } else {
+          // Striped w/ striped
+          const directions = [DIRECTIONS.UP, DIRECTIONS.RIGHT, DIRECTIONS.DOWN, DIRECTIONS.LEFT];
+          this.removeTile(tile1);
+          await this.handleSpecialStriped(r2, c2, directions);
+          this.removeTile(tile2);
+        }
       } else {
         // Fish w/ fish
         this.handleSpecialFish(r1, c1, r2, c2, 3);
