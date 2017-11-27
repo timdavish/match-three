@@ -1026,18 +1026,43 @@ export default {
       if (s1 === SPECIALS.WRAPPED || s2 === SPECIALS.WRAPPED) {
         if (s1 === SPECIALS.FISH || s2 === SPECIALS.FISH) {
           // Wrapped w/ fish
-          this.removeTile(tile1);
-          this.removeTile(tile2);
-
           const position = this.handleSpecialFish(r1, c1, r2, c2);
           const tile = this.getTile(position.row, position.col);
+
+          this.removeTile(tile1);
+          this.removeTile(tile2);
 
           this.setTileAs(tile, { special: SPECIALS.WRAPPED });
           await this.hitPositions([position]);
 
         } else if (s1 === SPECIALS.STRIPED_H || s1 === SPECIALS.STRIPED_V || s2 === SPECIALS.STRIPED_H || s2 === SPECIALS.STRIPED_V) {
           // Wrapped w/ striped
+          const horizontal = [DIRECTIONS.RIGHT, DIRECTIONS.LEFT];
+          const vertical = [DIRECTIONS.UP, DIRECTIONS.DOWN];
+          const neighbors = this.getValidNeighbors(r2, c2);
 
+          this.removeTile(tile1);
+          this.removeTile(tile2);
+
+          // Horizontal swipe
+          await Promise.all(neighbors.map(n => {
+            return new Promise(async resolve => {
+              await this.handleSpecialStriped(n.row, n.col, horizontal);
+              resolve();
+            });
+          }));
+
+          await wait(250);
+
+          // Vertical swipe
+          await Promise.all(neighbors.map(n => {
+            return new Promise(async resolve => {
+              await this.handleSpecialStriped(n.row, n.col, vertical);
+              resolve();
+            });
+          }));
+
+          await wait(250);
         } else {
           // Wrapped w/ wrapped
           this.removeTile(tile1);
